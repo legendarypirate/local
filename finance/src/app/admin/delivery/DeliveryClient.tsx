@@ -315,25 +315,41 @@ const baseColumns: ColumnsType<Delivery> = [
   { 
     title: 'Үйлдэл',
     key: 'actions',
-    render: (_: any, record: Delivery) => (
-      <Space>
-        <Button
-          type="link"
-          icon={<EditOutlined />}
-          onClick={() => handleEditClick(record)}
-        >
-          Edit
-        </Button>
-        <Button
-          type="link"
-          icon={<EyeOutlined />}
-          onClick={() => handleViewHistory(record.id)}
-          loading={historyLoading}
-        >
-          History
-        </Button>
-      </Space>
-    ),
+    render: (_: any, record: Delivery) => {
+      // Check if status is 1 (new delivery) - handle both numeric and string status
+      const statusValue = typeof record.status === 'number' ? record.status : parseInt(String(record.status), 10);
+      const isNewDelivery = statusValue === 1 || record.status_name?.status === 'шинэ';
+      
+      return (
+        <Space>
+          <Button
+            type="link"
+            icon={<EditOutlined />}
+            onClick={() => handleEditClick(record)}
+          >
+            Edit
+          </Button>
+          <Button
+            type="link"
+            icon={<EyeOutlined />}
+            onClick={() => handleViewHistory(record.id)}
+            loading={historyLoading}
+          >
+            History
+          </Button>
+          {isNewDelivery && (
+            <Button
+              type="link"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDeleteSingle(record.id)}
+            >
+              Delete
+            </Button>
+          )}
+        </Space>
+      );
+    },
   }
 ];
 
@@ -586,6 +602,51 @@ const handleDistrictFilterChange = (value: number | null) => {
       setProductList([]);
     }
   }, [pullFromWarehouse, merchantId]);
+  const handleDeleteSingle = async (deliveryId: number) => {
+    // Find the delivery to check its status
+    const delivery = deliveryData.find(item => item.id === deliveryId);
+    
+    if (!delivery) {
+      message.error("Хүргэлт олдсонгүй");
+      return;
+    }
+    
+    // Check if status is 1 (new delivery) - handle both numeric and string status
+    const statusValue = typeof delivery.status === 'number' ? delivery.status : parseInt(String(delivery.status), 10);
+    const isNewDelivery = statusValue === 1 || delivery.status_name?.status === 'шинэ';
+    
+    if (!isNewDelivery) {
+      message.warning("Зөвхөн шинэ хүргэлтийг устгах боломжтой");
+      return;
+    }
+
+    Modal.confirm({
+      title: 'Хүргэлт устгах',
+      content: 'Та энэ хүргэлтийг устгахдаа итгэлтэй байна уу?',
+      okText: "Тийм",
+      cancelText: "Үгүй",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/delivery/${deliveryId}`, {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+
+          if (!response.ok) throw new Error("Амжилтгүй боллоо");
+
+          message.success("Амжилттай устгагдлаа");
+          setRefreshKey(prev => prev + 1); // Refresh the table
+        } catch (error) {
+          const err = error as Error;
+          message.error("Алдаа гарлаа: " + err.message);
+        }
+      },
+    });
+  };
+
   const handleDelete = async () => {
     // Шалгах: бүх сонгогдсон item-уудын статус 1 эсэх
     const selectedDeliveries = deliveryData.filter(item => selectedRowKeys.includes(item.id));
