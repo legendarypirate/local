@@ -35,6 +35,8 @@ export default function UsersPage() {
   const [wares, setWares] = useState([]);
   const [selectedGood, setSelectedGood] = useState<Good | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editForm] = Form.useForm();
   const [user, setUser] = useState<any>(null);
   const [username, setUsername] = useState<string | null>(null);
 
@@ -62,7 +64,9 @@ export default function UsersPage() {
         const goodsRes = await fetch(goodsUrl);
         const goodsResult = await goodsRes.json();
         if (goodsResult.success) {
-          setGood(goodsResult.data);
+          // Sort by ID in descending order
+          const sortedGoods = [...goodsResult.data].sort((a, b) => b.id - a.id);
+          setGood(sortedGoods);
         }
 
         // Users (merchants)
@@ -200,6 +204,48 @@ export default function UsersPage() {
     }
   };
 
+  const handleEditGood = (record: Good) => {
+    setSelectedGood(record);
+    editForm.setFieldsValue({ name: record.name });
+    setEditModalVisible(true);
+  };
+
+  const handleEditFormSubmit = async () => {
+    if (!selectedGood) return;
+
+    try {
+      const values = await editForm.validateFields();
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/good/${selectedGood.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: values.name,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setGood((prevGoods) =>
+          prevGoods.map((good) =>
+            good.id === selectedGood.id ? result.data : good
+          )
+        );
+        setEditModalVisible(false);
+        editForm.resetFields();
+        openNotification('success', 'Барааны нэр амжилттай шинэчлэгдлээ');
+      } else {
+        openNotification('error', result.message || 'Барааны нэр шинэчлэхэд алдаа гарлаа');
+      }
+    } catch (error) {
+      console.error('Error updating good name:', error);
+      openNotification('error', 'Барааны нэр шинэчлэхэд алдаа гарлаа');
+    }
+  };
+
   const handleFormSubmit = async () => {
     try {
       const values = await form.validateFields();
@@ -215,7 +261,7 @@ export default function UsersPage() {
       const result = await response.json();
 
       if (response.ok) {
-        setGood((prev) => [...prev, result.data]);
+        setGood((prev) => [...prev, result.data].sort((a, b) => b.id - a.id));
         handleDrawerClose();
         openNotification('success', 'Бараа амжилттай үүсгэгдлээ');
       } else {
@@ -262,6 +308,13 @@ export default function UsersPage() {
       key: 'actions',
       render: (_, record) => (
         <Space>
+          <Button
+            type="link"
+            icon={<EditOutlined />}
+            onClick={() => handleEditGood(record)}
+          >
+            Засах
+          </Button>
           <Button
             type="link"
             icon={<EditOutlined />}
@@ -402,6 +455,32 @@ export default function UsersPage() {
             rules={[{ required: true, message: 'Тоо хэмжээг оруулна уу' }]}
           >
             <Input type="number" placeholder="Тоо хэмжээ" min={1} />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" block>
+              Хадгалах
+            </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Барааны нэр засах"
+        visible={editModalVisible}
+        onCancel={() => {
+          setEditModalVisible(false);
+          editForm.resetFields();
+        }}
+        footer={null}
+        centered
+      >
+        <Form form={editForm} onFinish={handleEditFormSubmit} layout="vertical">
+          <Form.Item
+            name="name"
+            label="Барааны нэр"
+            rules={[{ required: true, message: 'Барааны нэрийг оруулна уу!' }]}
+          >
+            <Input placeholder="Барааны нэр" />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" block>

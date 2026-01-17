@@ -128,47 +128,59 @@ exports.findOne = (req, res) => {
     });
 };
 
-// Update a Categories by the id in the request
-exports.update = (req, res) => {
+// Update a Good by the id in the request
+exports.update = async (req, res) => {
   const id = req.params.id;
 
-  // Validate request (ensure at least one field is provided)
-  if (!req.body.brand && !req.body.nature) {
+  // Validate request (ensure name is provided)
+  if (!req.body.name) {
     return res.status(400).json({
       success: false,
-      message: "Request body cannot be empty. At least brand or nature is required.",
+      message: "Good name is required.",
     });
   }
 
-  // Prepare the data for updating
-  const updateData = {
-    brand: req.body.brand || null,
-    nature: req.body.nature || null,
-  };
-
-  // Update the category entry in the database
-  category.update(updateData, { where: { id: id } })
-    .then((num) => {
-      if (num[0] === 1) {
-        return category.findByPk(id); // Fetch the updated category
-      } else {
-        throw new Error("Category not found or no changes were made.");
-      }
-    })
-    .then((updatedCategory) => {
-      res.json({
-        success: true,
-        message: "Category was updated successfully.",
-        data: updatedCategory,
-      });
-    })
-    .catch((err) => {
-      res.status(500).json({
+  try {
+    const good = await Good.findByPk(id);
+    if (!good) {
+      return res.status(404).json({
         success: false,
-        message: "Error updating category with id=" + id,
-        error: err.message,
+        message: `Good with id=${id} not found.`,
       });
+    }
+
+    // Update only the name
+    good.name = req.body.name;
+    await good.save();
+
+    // Fetch the updated good with associations
+    const updatedGood = await Good.findByPk(id, {
+      include: [
+        {
+          model: User,
+          as: 'merchant',
+          attributes: ['id', 'username'],
+        },
+        {
+          model: Ware,
+          as: 'ware',
+          attributes: ['id', 'name'],
+        },
+      ],
     });
+
+    res.json({
+      success: true,
+      message: "Good was updated successfully.",
+      data: updatedGood,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "Error updating good with id=" + id,
+      error: err.message,
+    });
+  }
 };
 
 

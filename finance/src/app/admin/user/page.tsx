@@ -58,7 +58,9 @@ export default function UsersPage() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user`);
       const result = await res.json();
       if (result.success) {
-        setUsers(result.data);
+        // Sort by ID in descending order
+        const sortedUsers = [...result.data].sort((a, b) => b.id - a.id);
+        setUsers(sortedUsers);
       } else {
         console.error('Failed to load users:', result.message);
       }
@@ -74,11 +76,13 @@ export default function UsersPage() {
     fetchData();
   }, []);
 
-  const filteredCustomers = users.filter(
-    (user) =>
-      user.role_id === 2 &&
-      user.username.toLowerCase().includes(searchText.toLowerCase())
-  );
+  const filteredCustomers = users
+    .filter(
+      (user) =>
+        user.role_id === 2 &&
+        user.username.toLowerCase().includes(searchText.toLowerCase())
+    )
+    .sort((a, b) => b.id - a.id); // Always sort by ID descending
 
   useEffect(() => {
     setPagination((prev) => ({
