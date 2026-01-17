@@ -34,6 +34,7 @@ db.privacies = require("./privacy.model.js")(sequelize, Sequelize);
 db.statuses = require("./status.model.js")(sequelize, Sequelize);
 db.orders = require("./order.model.js")(sequelize, Sequelize);
 db.regions = require("./region.model.js")(sequelize, Sequelize);
+db.khoroos = require("./khoroo.model.js")(sequelize, Sequelize);
 db.notifications = require("./notification.model.js")(sequelize, Sequelize);
 db.logs = require("./log.model.js")(sequelize, Sequelize);
 db.summaries = require("./summary.model.js")(sequelize, Sequelize);
@@ -257,5 +258,26 @@ db.deliveries.belongsTo(db.users, {
   as: 'driver', // this allows delivery.driver to access the User (driver) info
 });
 
+// Region and Khoroo associations
+db.regions.hasMany(db.khoroos, {
+  foreignKey: 'region_id',
+  as: 'khoroos', // region.khoroos
+});
+
+db.khoroos.belongsTo(db.regions, {
+  foreignKey: 'region_id',
+  as: 'region', // khoroo.region
+});
+
+// Delivery and Khoroo associations
+db.khoroos.hasMany(db.deliveries, {
+  foreignKey: 'khoroo_id',
+  as: 'deliveries', // khoroo.deliveries
+});
+
+db.deliveries.belongsTo(db.khoroos, {
+  foreignKey: 'khoroo_id',
+  as: 'khoroo', // delivery.khoroo
+});
 
 module.exports = db;

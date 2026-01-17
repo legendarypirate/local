@@ -201,6 +201,7 @@ exports.create = async (req, res) => {
       phone: req.body.phone,
       address: req.body.address,
       dist_id: req.body.dist_id,
+      khoroo_id: req.body.khoroo_id || null,
       status: 1,
       is_paid: req.body.is_paid ?? false,
       is_rural: req.body.is_rural ?? false,
@@ -395,6 +396,7 @@ exports.findAll = async (req, res) => {
       driver_id,
       phone,
       dist_id,
+      khoroo_id,
       start_date,
       end_date,
     } = req.query;
@@ -407,6 +409,7 @@ exports.findAll = async (req, res) => {
     if (merchant_id) where.merchant_id = merchant_id;
     if (driver_id) where.driver_id = driver_id;
     if (dist_id) where.dist_id = dist_id;
+    if (khoroo_id) where.khoroo_id = khoroo_id;
     if (phone) where.phone = { [Op.like]: `%${phone}%` };
 
     if (status_ids) {

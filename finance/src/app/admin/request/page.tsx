@@ -159,11 +159,15 @@ export default function UsersPage() {
     }
   };
 
-  // Edit functionality - Only phone field
+  // Edit functionality - Multiple fields
   const handleEdit = (record: User) => {
     setEditingUser(record);
     editForm.setFieldsValue({
       phone: record.phone,
+      account_number: record.account_number,
+      bank: record.bank,
+      contact_info: record.contact_info,
+      address: record.address,
     });
     setEditModalVisible(true);
   };
@@ -180,10 +184,13 @@ export default function UsersPage() {
 
       if (!editingUser) return;
 
-      // Only send phone field to update
-      const updateData = {
-        phone: values.phone
-      };
+      // Send multiple fields to update
+      const updateData: Partial<User> = {};
+      if (values.phone !== undefined) updateData.phone = values.phone;
+      if (values.account_number !== undefined) updateData.account_number = values.account_number;
+      if (values.bank !== undefined) updateData.bank = values.bank;
+      if (values.contact_info !== undefined) updateData.contact_info = values.contact_info;
+      if (values.address !== undefined) updateData.address = values.address;
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/${editingUser.id}`, {
         method: 'PUT',
@@ -196,11 +203,11 @@ export default function UsersPage() {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        message.success('Утасны дугаар амжилттай шинэчлэгдлээ');
+        message.success('Мэдээлэл амжилттай шинэчлэгдлээ');
         fetchData(); // ✅ refresh after update
         handleEditModalClose();
       } else {
-        console.error('Failed to update phone:', result.message);
+        console.error('Failed to update user:', result.message);
         message.error(result.message || 'Шинэчлэхэд алдаа гарлаа');
       }
     } catch (error) {
@@ -280,7 +287,7 @@ export default function UsersPage() {
             icon={<EditOutlined />}
             onClick={() => handleEdit(record)}
           >
-            Edit Phone
+            Засах
           </Button>
           <Button
             type="link"
@@ -398,9 +405,9 @@ export default function UsersPage() {
         </Form>
       </Drawer>
 
-      {/* Edit Phone Modal */}
+      {/* Edit User Modal */}
       <Modal
-        title={`Утасны дугаар засах - ${editingUser?.username}`}
+        title={`Мэдээлэл засах - ${editingUser?.username}`}
         open={editModalVisible}
         onCancel={handleEditModalClose}
         footer={[
@@ -411,22 +418,42 @@ export default function UsersPage() {
             Хадгалах
           </Button>,
         ]}
-        width={400}
+        width={500}
       >
         <Form layout="vertical" form={editForm}>
           <Form.Item 
             name="phone" 
             label="Утасны дугаар" 
             rules={[
-              { required: true, message: 'Утасны дугаар оруулна уу' },
-              { pattern: /^[0-9+-\s()]+$/, message: 'Зөв утасны дугаар оруулна уу' }
+              { pattern: /^[0-9+-\s()]*$/, message: 'Зөв утасны дугаар оруулна уу' }
             ]}
           >
             <Input placeholder="Утасны дугаар" />
           </Form.Item>
-          <div style={{ color: '#666', fontSize: '12px', marginTop: '-8px', marginBottom: '16px' }}>
-            Зөвхөн утасны дугаар засах боломжтой
-          </div>
+          <Form.Item 
+            name="account_number" 
+            label="Дансны дугаар"
+          >
+            <Input placeholder="Дансны дугаар" />
+          </Form.Item>
+          <Form.Item 
+            name="bank" 
+            label="Банк"
+          >
+            <Input placeholder="Банкны нэр" />
+          </Form.Item>
+          <Form.Item 
+            name="contact_info" 
+            label="Холбоо барих мэдээлэл"
+          >
+            <Input placeholder="Холбоо барих мэдээлэл" />
+          </Form.Item>
+          <Form.Item 
+            name="address" 
+            label="Хаяг"
+          >
+            <Input.TextArea placeholder="Хаяг" rows={3} />
+          </Form.Item>
         </Form>
       </Modal>
     </div>

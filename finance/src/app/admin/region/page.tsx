@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Input, Drawer, Form, Modal, List, Tag, Row, Col } from 'antd';
+import { Table, Button, Space, Input, Drawer, Form, Modal, List, Tag, Row, Col, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 interface Region {
@@ -30,14 +30,12 @@ interface Delivery {
   };
 }
 
-const districts = [
-  { id: 1, name: 'Баянзүрх' },
-  { id: 2, name: 'Хан-Уул' },
-  { id: 3, name: 'Сүхбаатар' },
-  { id: 4, name: 'Чингэлтэй' },
-  { id: 5, name: 'Сонгинохайрхан' },
-  { id: 6, name: 'Баянгол' }
-];
+interface Khoroo {
+  id: number;
+  name: string;
+  region_id: number;
+  createdAt: string;
+}
 
 export default function DeliveryPage() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -49,6 +47,11 @@ export default function DeliveryPage() {
   const [districtDeliveries, setDistrictDeliveries] = useState<Delivery[]>([]);
   const [isDeliveryModalVisible, setIsDeliveryModalVisible] = useState(false);
   const [deliveryLoading, setDeliveryLoading] = useState(false);
+  const [isKhorooModalVisible, setIsKhorooModalVisible] = useState(false);
+  const [khoroos, setKhoroos] = useState<Khoroo[]>([]);
+  const [khorooLoading, setKhorooLoading] = useState(false);
+  const [khorooForm] = Form.useForm();
+  const [regionsLoading, setRegionsLoading] = useState(false);
 
   // Get today's date range - FIXED to use current date properly
   const getTodayDateRange = () => {
@@ -59,22 +62,49 @@ export default function DeliveryPage() {
     return { startOfDay, endOfDay };
   };
 
-  // Fetch delivery count for each district (today only)
+  // Fetch all regions from the API
+  const fetchRegions = async () => {
+    setRegionsLoading(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/region`);
+      if (response.ok) {
+        const result = await response.json();
+        const regions: Region[] = result.data || [];
+        return regions;
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching regions:', error);
+      message.error('Бүсүүдийг ачааллахад алдаа гарлаа');
+      return [];
+    } finally {
+      setRegionsLoading(false);
+    }
+  };
+
+  // Fetch delivery count for each region (today only)
   const fetchDeliveryCounts = async () => {
     try {
       const { startOfDay, endOfDay } = getTodayDateRange();
 
-      const districtsWithCounts = await Promise.all(
-        districts.map(async (district) => {
+      // First fetch all regions from the API
+      const regions = await fetchRegions();
+      if (regions.length === 0) {
+        setRegionData([]);
+        return;
+      }
+
+      const regionsWithCounts = await Promise.all(
+        regions.map(async (region) => {
           try {
             const response = await fetch(
-              `${process.env.NEXT_PUBLIC_API_URL}/api/delivery?dist_id=${district.id}&start_date=${startOfDay}&end_date=${endOfDay}&page=1&limit=1000`
+              `${process.env.NEXT_PUBLIC_API_URL}/api/delivery?dist_id=${region.id}&start_date=${startOfDay}&end_date=${endOfDay}&page=1&limit=1000`
             );
             if (response.ok) {
               const result = await response.json();
               const deliveries: Delivery[] = result.data || [];
               
-              console.log(`District ${district.name} deliveries:`, deliveries.length);
+              console.log(`Region ${region.name} deliveries:`, deliveries.length);
               
               // Calculate the earliest createdAt date from today's deliveries
               const earliestDelivery = deliveries.reduce((earliest, delivery) => {
@@ -83,22 +113,22 @@ export default function DeliveryPage() {
               }, null as Delivery | null);
 
               return {
-                ...district,
+                ...region,
                 deliveryCount: deliveries.length,
-                createdAt: earliestDelivery ? earliestDelivery.createdAt : new Date().toISOString()
+                createdAt: earliestDelivery ? earliestDelivery.createdAt : region.createdAt || new Date().toISOString()
               };
             }
           } catch (error) {
-            console.error(`Error fetching deliveries for ${district.name}:`, error);
+            console.error(`Error fetching deliveries for ${region.name}:`, error);
           }
           return {
-            ...district,
+            ...region,
             deliveryCount: 0,
-            createdAt: new Date().toISOString()
+            createdAt: region.createdAt || new Date().toISOString()
           };
         })
       );
-      setRegionData(districtsWithCounts);
+      setRegionData(regionsWithCounts);
     } catch (error) {
       console.error('Error fetching delivery counts:', error);
     }
@@ -205,6 +235,95 @@ export default function DeliveryPage() {
     setDistrictDeliveries([]);
   };
 
+  // Khoroo management functions
+  const fetchKhoroos = async (regionId: number) => {
+    setKhorooLoading(true);
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/khoroo?region_id=${regionId}`
+      );
+      if (response.ok) {
+        const result = await response.json();
+        setKhoroos(result.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching khoroos:', error);
+      message.error('Хороо ачааллахад алдаа гарлаа');
+    } finally {
+      setKhorooLoading(false);
+    }
+  };
+
+  const handleManageKhoroos = async (district: Region) => {
+    setSelectedDistrict(district);
+    await fetchKhoroos(district.id);
+    setIsKhorooModalVisible(true);
+  };
+
+  const handleCloseKhorooModal = () => {
+    setIsKhorooModalVisible(false);
+    setSelectedDistrict(null);
+    setKhoroos([]);
+    khorooForm.resetFields();
+  };
+
+  const handleCreateKhoroo = async () => {
+    try {
+      const values = await khorooForm.validateFields();
+      
+      if (!selectedDistrict || !selectedDistrict.id) {
+        message.error('Бүс сонгогдоогүй байна. Та эхлээд бүс сонгоно уу.');
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/khoroo`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: values.name,
+          region_id: selectedDistrict.id,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        message.success('Хороо амжилттай үүслээ');
+        khorooForm.resetFields();
+        if (selectedDistrict && selectedDistrict.id) {
+          await fetchKhoroos(selectedDistrict.id);
+        }
+      } else {
+        message.error(result.message || 'Хороо үүсгэхэд алдаа гарлаа');
+      }
+    } catch (error) {
+      console.error('Error creating khoroo:', error);
+      message.error('Хороо үүсгэхэд алдаа гарлаа');
+    }
+  };
+
+  const handleDeleteKhoroo = async (khorooId: number) => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/khoroo/${khorooId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        message.success('Хороо амжилттай устгалаа');
+        if (selectedDistrict) {
+          await fetchKhoroos(selectedDistrict.id);
+        }
+      } else {
+        message.error('Хороо устгахад алдаа гарлаа');
+      }
+    } catch (error) {
+      console.error('Error deleting khoroo:', error);
+      message.error('Хороо устгахад алдаа гарлаа');
+    }
+  };
+
   const getStatusColor = (status: number) => {
     switch (status) {
       case 1: return 'orange';
@@ -262,6 +381,13 @@ export default function DeliveryPage() {
             onClick={() => handleViewDeliveries(record)}
           >
             Хүргэлтүүд
+          </Button>
+          <Button 
+            type="default"
+            icon={<PlusOutlined />}
+            onClick={() => handleManageKhoroos(record)}
+          >
+            Хороо
           </Button>
           <Button icon={<EditOutlined />}>Засах</Button>
           <Button 
@@ -409,6 +535,74 @@ export default function DeliveryPage() {
                     </Col>
                   </Row>
                 </div>
+              </List.Item>
+            )}
+          />
+        )}
+      </Modal>
+
+      {/* Khoroo Management Modal */}
+      <Modal
+        title={
+          <div>
+            <h3>{selectedDistrict?.name} дүүргийн хороонууд</h3>
+          </div>
+        }
+        open={isKhorooModalVisible}
+        onCancel={handleCloseKhorooModal}
+        footer={[
+          <Button key="close" onClick={handleCloseKhorooModal}>
+            Хаах
+          </Button>
+        ]}
+        width={600}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Form form={khorooForm} layout="inline" onFinish={handleCreateKhoroo}>
+            <Form.Item
+              name="name"
+              rules={[{ required: true, message: 'Хорооны нэрийг оруулна уу' }]}
+              style={{ flex: 1, marginRight: 8 }}
+            >
+              <Input placeholder="Хорооны нэр" />
+            </Form.Item>
+            <Form.Item>
+              <Button type="primary" htmlType="submit" icon={<PlusOutlined />}>
+                Хороо нэмэх
+              </Button>
+            </Form.Item>
+          </Form>
+        </div>
+
+        {khorooLoading ? (
+          <div style={{ textAlign: 'center', padding: '20px' }}>
+            Хороонуудыг ачаалж байна...
+          </div>
+        ) : khoroos.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
+            Энэ дүүрэгт хороо олдсонгүй
+          </div>
+        ) : (
+          <List
+            dataSource={khoroos}
+            renderItem={(khoroo) => (
+              <List.Item
+                actions={[
+                  <Button
+                    key="delete"
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    onClick={() => handleDeleteKhoroo(khoroo.id)}
+                  >
+                    Устгах
+                  </Button>
+                ]}
+              >
+                <List.Item.Meta
+                  title={khoroo.name}
+                  description={`ID: ${khoroo.id}`}
+                />
               </List.Item>
             )}
           />

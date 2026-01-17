@@ -144,17 +144,18 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 
 
   // Add to your existing state variables
-const [districts, setDistricts] = useState([
-  { id: 1, name: 'Баянзүрх' },
-  { id: 2, name: 'Хан-Уул' },
-  { id: 3, name: 'Сүхбаатар' },
-  { id: 4, name: 'Чингэлтэй' },
-  { id: 5, name: 'Сонгинохайрхан' },
-  { id: 6, name: 'Баянгол' }
-]);
+const [districts, setDistricts] = useState<{ id: number; name: string }[]>([]);
+const [districtsLoading, setDistrictsLoading] = useState(false);
 
 const [selectedDistrict, setSelectedDistrict] = useState<number | null>(null);
 const [districtFilter, setDistrictFilter] = useState<number | null>(null);
+
+const [khoroos, setKhoroos] = useState<{ id: number; name: string }[]>([]);
+const [khoroosLoading, setKhoroosLoading] = useState(false);
+const [khorooFilter, setKhorooFilter] = useState<number | null>(null);
+const [formKhoroos, setFormKhoroos] = useState<{ id: number; name: string }[]>([]);
+const [formKhoroosLoading, setFormKhoroosLoading] = useState(false);
+const [selectedKhorooId, setSelectedKhorooId] = useState<number | null>(null);
 
   const handleEditClick = async (record: Delivery) => {
     setSelectedDelivery(record);
@@ -434,6 +435,73 @@ const columns: ColumnsType<Delivery> = isMerchant
     }
   };
 
+  const fetchDistricts = async () => {
+    if (districts.length > 0) return; // only fetch once if already loaded
+    setDistrictsLoading(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/region`);
+      const result = await response.json();
+      if (result.success) {
+        setDistricts(result.data);
+      } else {
+        message.error('Failed to load districts');
+      }
+    } catch (error) {
+      console.error('Failed to fetch districts:', error);
+      message.error('Error loading districts');
+    } finally {
+      setDistrictsLoading(false);
+    }
+  };
+
+  const fetchKhoroos = async (regionId: number, isForForm: boolean = false) => {
+    if (!regionId) {
+      if (isForForm) {
+        setFormKhoroos([]);
+      } else {
+        setKhoroos([]);
+      }
+      return;
+    }
+    if (isForForm) {
+      setFormKhoroosLoading(true);
+    } else {
+      setKhoroosLoading(true);
+    }
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/khoroo?region_id=${regionId}`);
+      const result = await response.json();
+      if (result.success) {
+        if (isForForm) {
+          setFormKhoroos(result.data || []);
+        } else {
+          setKhoroos(result.data || []);
+        }
+      } else {
+        message.error('Failed to load khoroos');
+        if (isForForm) {
+          setFormKhoroos([]);
+        } else {
+          setKhoroos([]);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch khoroos:', error);
+      message.error('Error loading khoroos');
+      if (isForForm) {
+        setFormKhoroos([]);
+      } else {
+        setKhoroos([]);
+      }
+    } finally {
+      if (isForForm) {
+        setFormKhoroosLoading(false);
+      } else {
+        setKhoroosLoading(false);
+      }
+    }
+  };
+
 // Handle delivery history
 const handleViewHistory = async (deliveryId: number) => {
   setHistoryLoading(true);
@@ -546,6 +614,17 @@ const handleViewHistory = async (deliveryId: number) => {
   // Add this handler function
 const handleDistrictFilterChange = (value: number | null) => {
   setDistrictFilter(value);
+  setKhorooFilter(null); // Clear khoroo filter when district changes
+  if (value) {
+    fetchKhoroos(value); // Fetch khoroos for the selected district
+  } else {
+    setKhoroos([]); // Clear khoroos if no district selected
+  }
+  setPagination((prev) => ({ ...prev, current: 1 }));
+};
+
+const handleKhorooFilterChange = (value: number | null) => {
+  setKhorooFilter(value);
   setPagination((prev) => ({ ...prev, current: 1 }));
 };
   
@@ -737,6 +816,11 @@ const handleDistrictFilterChange = (value: number | null) => {
           const statusResult = await statusRes.json();
           if (statusResult.success) setStatusList(statusResult.data);
         }
+
+        // Fetch districts (regions) only once
+        if (districts.length === 0) {
+          await fetchDistricts();
+        }
   
         // Build delivery URL with filters
         let url = `${process.env.NEXT_PUBLIC_API_URL}/api/delivery?page=${pagination.current}&limit=${pagination.pageSize}`;
@@ -755,6 +839,9 @@ const handleDistrictFilterChange = (value: number | null) => {
         url += `&dist_id=${districtFilter}`;
         }
 
+        if (khorooFilter) {
+          url += `&khoroo_id=${khorooFilter}`;
+        }
 
         if (driverFilter) {
           url += `&driver_id=${driverFilter}`;
@@ -787,7 +874,7 @@ const handleDistrictFilterChange = (value: number | null) => {
     };
   
     fetchAllData();
-  }, [pagination.current, pagination.pageSize, merchantFilter, selectedStatuses, phoneFilter,dateRange,selectedMerchantId, driverFilter, districtFilter,refreshKey,statusIdsParam ]);
+  }, [pagination.current, pagination.pageSize, merchantFilter, selectedStatuses, phoneFilter,dateRange,selectedMerchantId, driverFilter, districtFilter, khorooFilter, refreshKey,statusIdsParam ]);
   
   
   const rowSelection = {
@@ -892,6 +979,7 @@ const handleOk = async () => {
       address: values.address,
       status: 1,
       dist_id: values.dist_id, // Add district ID
+      khoroo_id: values.khoroo_id || null, // Add khoroo ID (optional)
       is_paid: isPaid,
       is_rural: isRural,
       price: Number(values.price),
@@ -1037,6 +1125,9 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
 
   const handleCloseDrawer = () => {
     setIsDrawerVisible(false);
+    setFormKhoroos([]);
+    setSelectedKhorooId(null);
+    form.setFieldsValue({ khoroo_id: undefined });
   };
 
   
@@ -1182,7 +1273,13 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
       style={{ width: 200 }}
       value={districtFilter}
       onChange={handleDistrictFilterChange}
+      onDropdownVisibleChange={(open) => {
+        if (open) fetchDistricts();
+      }}
       allowClear
+      showSearch
+      optionFilterProp="children"
+      loading={districtsLoading}
     >
       {districts.map((district) => (
         <Option key={district.id} value={district.id}>
@@ -1190,6 +1287,24 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
         </Option>
       ))}
     </Select>
+    {districtFilter && (
+      <Select
+        placeholder="Хороогоор шүүх"
+        style={{ width: 200 }}
+        value={khorooFilter}
+        onChange={handleKhorooFilterChange}
+        allowClear
+        showSearch
+        optionFilterProp="children"
+        loading={khoroosLoading}
+      >
+        {khoroos.map((khoroo) => (
+          <Option key={khoroo.id} value={khoroo.id}>
+            {khoroo.name}
+          </Option>
+        ))}
+      </Select>
+    )}
     <Select
       placeholder="Filter by Merchant"
       style={{ width: 200 }}
@@ -1368,10 +1483,50 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
   name="dist_id"
   rules={[{ required: true, message: 'Дүүрэг сонгоно уу!' }]}
 >
-  <Select placeholder="Дүүрэг сонгох">
+  <Select 
+    placeholder="Дүүрэг сонгох"
+    onDropdownVisibleChange={(open) => {
+      if (open) fetchDistricts();
+    }}
+    onChange={(value) => {
+      setSelectedKhorooId(null);
+      setFormKhoroos([]);
+      form.setFieldsValue({ khoroo_id: undefined });
+      if (value) {
+        fetchKhoroos(value, true);
+      }
+    }}
+    showSearch
+    optionFilterProp="children"
+    loading={districtsLoading}
+  >
     {districts.map((district) => (
       <Select.Option key={district.id} value={district.id}>
         {district.name}
+      </Select.Option>
+    ))}
+  </Select>
+</Form.Item>
+
+<Form.Item
+  label="Хороо"
+  name="khoroo_id"
+>
+  <Select 
+    placeholder="Хороо сонгох (сонголттой)"
+    value={selectedKhorooId}
+    onChange={(value) => {
+      setSelectedKhorooId(value);
+    }}
+    disabled={!form.getFieldValue('dist_id')}
+    showSearch
+    optionFilterProp="children"
+    loading={formKhoroosLoading}
+    allowClear
+  >
+    {formKhoroos.map((khoroo) => (
+      <Select.Option key={khoroo.id} value={khoroo.id}>
+        {khoroo.name}
       </Select.Option>
     ))}
   </Select>
