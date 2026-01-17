@@ -19,3 +19,4 @@ logs/
 
 /delivery/package.json
 /delivery/pnpm-lock.yaml
+/finance/pnpm-lock.yaml
