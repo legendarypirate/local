@@ -12,10 +12,14 @@ module.exports = (sequelize, Sequelize) => {
       phone: {
         type: Sequelize.STRING
       },
- contact_info: {
+      contact_info: {
         type: Sequelize.STRING,
         allowNull: true
 
+      },
+      shop_phone: {
+        type: Sequelize.STRING,
+        allowNull: true
       },
       email: {
         type: Sequelize.STRING

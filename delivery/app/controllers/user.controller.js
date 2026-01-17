@@ -23,6 +23,8 @@ exports.create = async (req, res) => {
       username: req.body.username,
       phone: req.body.phone,
       email: req.body.email,
+      shop_phone: req.body.shop_phone,
+      contact_info: req.body.contact_info,
       role_id: req.body.role_id,
       password: hashedPassword
     };

@@ -28,7 +28,8 @@ interface User {
   username: string;
   email: string;
   phone: string;
-  contact_info?: string; // ✅ Added here
+  shop_phone?: string;
+  contact_info?: string;
   role_id: number;
   createdAt: string;
   updatedAt: string;
@@ -38,7 +39,10 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
   const [form] = Form.useForm();
+  const [editForm] = Form.useForm();
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: 100,
@@ -146,6 +150,44 @@ export default function UsersPage() {
     }
   };
 
+  const handleEditSubmit = async () => {
+    if (!editingUser) return;
+
+    try {
+      const values = await editForm.validateFields();
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/user/${editingUser.id}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(values),
+        }
+      );
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        message.success('Хэрэглэгч амжилттай шинэчлэгдлээ');
+        fetchData();
+        setEditModalVisible(false);
+        setEditingUser(null);
+        editForm.resetFields();
+      } else {
+        message.error(result.message || 'Алдаа гарлаа');
+      }
+    } catch (error) {
+      console.error('Validation or request failed:', error);
+      message.error('Хэлбэр буруу байна');
+    }
+  };
+
+  const handleEditModalClose = () => {
+    setEditModalVisible(false);
+    setEditingUser(null);
+    editForm.resetFields();
+  };
+
   const handleSearch = (value: string) => {
     setSearchText(value);
     setPagination((prev) => ({ ...prev, current: 1 }));
@@ -165,9 +207,14 @@ export default function UsersPage() {
       dataIndex: 'phone',
     },
     {
-      title: 'Contact Info', // ✅ New column
+      title: 'Contact Info',
       dataIndex: 'contact_info',
-      render: (value) => value || '-', // show "-" if null
+      render: (value) => value || '-',
+    },
+    {
+      title: 'Shop Phone',
+      dataIndex: 'shop_phone',
+      render: (value) => value || '-',
     },
     {
       title: 'Role',
@@ -189,7 +236,16 @@ export default function UsersPage() {
           <Button
             type="link"
             icon={<EditOutlined />}
-            onClick={() => alert(`Edit ${record.username}`)}
+            onClick={() => {
+              setEditingUser(record);
+              editForm.setFieldsValue({
+                username: record.username,
+                email: record.email,
+                phone: record.phone,
+                shop_phone: record.shop_phone,
+              });
+              setEditModalVisible(true);
+            }}
           >
             Edit
           </Button>
@@ -273,9 +329,12 @@ export default function UsersPage() {
             <Input placeholder="Phone" />
           </Form.Item>
 
-          {/* ✅ Added contact_info field */}
           <Form.Item name="contact_info" label="Contact Info">
             <Input placeholder="Contact details or notes" />
+          </Form.Item>
+
+          <Form.Item name="shop_phone" label="Shop Phone">
+            <Input placeholder="Shop phone number" />
           </Form.Item>
 
           <Form.Item name="role_id" label="Role" rules={[{ required: true }]}>
@@ -301,6 +360,45 @@ export default function UsersPage() {
           </Form.Item>
         </Form>
       </Drawer>
+
+      <Modal
+        title="Хэрэглэгч засах"
+        open={editModalVisible}
+        onCancel={handleEditModalClose}
+        footer={null}
+        width={500}
+      >
+        <Form layout="vertical" form={editForm} onFinish={handleEditSubmit}>
+          <Form.Item
+            name="username"
+            label="Username"
+            rules={[{ required: true, message: 'Username оруулна уу' }]}
+          >
+            <Input placeholder="Username" />
+          </Form.Item>
+          <Form.Item
+            name="email"
+            label="Email"
+            rules={[{ type: 'email', message: 'Зөв email оруулна уу' }]}
+          >
+            <Input placeholder="Email" />
+          </Form.Item>
+          <Form.Item name="phone" label="Phone">
+            <Input placeholder="Phone" />
+          </Form.Item>
+          <Form.Item name="shop_phone" label="Shop Phone">
+            <Input placeholder="Shop phone number" />
+          </Form.Item>
+          <Form.Item>
+            <Space>
+              <Button type="primary" htmlType="submit">
+                Хадгалах
+              </Button>
+              <Button onClick={handleEditModalClose}>Цуцлах</Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }
