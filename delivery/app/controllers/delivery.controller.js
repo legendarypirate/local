@@ -573,47 +573,151 @@ exports.findOne = async (req, res) => {
 
 
 // Update a Categories by the id in the request
-exports.update = (req, res) => {
+exports.update = async (req, res) => {
   const id = req.params.id;
 
   // Validate request (ensure at least one field is provided)
-  if (!req.body.phone && !req.body.address && !req.body.price) {
+  if (!req.body.phone && !req.body.address && !req.body.price && !req.body.comment) {
     return res.status(400).json({
       success: false,
-      message: "Request body cannot be empty. At least brand or nature is required.",
+      message: "Request body cannot be empty. At least one field is required.",
     });
   }
 
-  // Prepare the data for updating
-  const updateData = {
-    phone: req.body.phone || null,
-    address: req.body.address || null,
-    price: req.body.price || null,
-  };
+  const t = await db.sequelize.transaction();
 
-  // Update the category entry in the database
-  Delivery.update(updateData, { where: { id: id } })
-    .then((num) => {
-      if (num[0] === 1) {
-        return Delivery.findByPk(id); // Fetch the updated category
-      } else {
-        throw new Error("Category not found or no changes were made.");
-      }
-    })
-    .then((updatedCategory) => {
-      res.json({
-        success: true,
-        message: "Category was updated successfully.",
-        data: updatedCategory,
-      });
-    })
-    .catch((err) => {
-      res.status(500).json({
-        success: false,
-        message: "Error updating category with id=" + id,
-        error: err.message,
-      });
+  try {
+    // Prepare the data for updating
+    const updateData = {};
+    if (req.body.phone !== undefined) updateData.phone = req.body.phone;
+    if (req.body.address !== undefined) updateData.address = req.body.address;
+    if (req.body.price !== undefined) updateData.price = req.body.price;
+    if (req.body.comment !== undefined) updateData.comment = req.body.comment;
+
+    // Update the delivery entry in the database
+    const [num] = await Delivery.update(updateData, { 
+      where: { id: id },
+      transaction: t
     });
+
+    if (num === 0) {
+      await t.rollback();
+      return res.status(404).json({
+        success: false,
+        message: "Delivery not found or no changes were made.",
+      });
+    }
+
+    // Handle items update if provided
+    if (req.body.items && Array.isArray(req.body.items)) {
+      // Get existing items
+      const existingItems = await DeliveryItem.findAll({
+        where: { delivery_id: id },
+        transaction: t
+      });
+
+      // Get existing item IDs from request
+      const providedItemIds = req.body.items
+        .filter(item => item.id)
+        .map(item => item.id);
+
+      // Delete items that are not in the provided list
+      const itemsToDelete = existingItems.filter(
+        item => !providedItemIds.includes(item.id)
+      );
+
+      for (const itemToDelete of itemsToDelete) {
+        // Restore stock for deleted items
+        if (itemToDelete.good_id) {
+          await Good.increment(
+            { stock: itemToDelete.quantity },
+            {
+              where: { id: itemToDelete.good_id },
+              transaction: t
+            }
+          );
+        }
+        await DeliveryItem.destroy({
+          where: { id: itemToDelete.id },
+          transaction: t
+        });
+      }
+
+      // Update or create items
+      for (const item of req.body.items) {
+        if (item.id) {
+          // Update existing item
+          const existingItem = existingItems.find(ei => ei.id === item.id);
+          if (existingItem) {
+            const quantityDiff = item.quantity - existingItem.quantity;
+            
+            // Update quantity
+            await DeliveryItem.update(
+              { quantity: item.quantity },
+              { where: { id: item.id }, transaction: t }
+            );
+
+            // Adjust stock if quantity changed
+            if (quantityDiff !== 0 && item.good_id) {
+              await Good.increment(
+                { stock: -quantityDiff },
+                {
+                  where: { id: item.good_id },
+                  transaction: t
+                }
+              );
+            }
+          }
+        } else {
+          // Create new item
+          await DeliveryItem.create(
+            {
+              delivery_id: id,
+              good_id: item.good_id,
+              quantity: item.quantity || 1,
+            },
+            { transaction: t }
+          );
+
+          // Reduce stock for new item
+          if (item.good_id) {
+            await Good.increment(
+              { stock: -(item.quantity || 1) },
+              {
+                where: { id: item.good_id },
+                transaction: t
+              }
+            );
+          }
+        }
+      }
+    }
+
+    await t.commit();
+
+    // Fetch the updated delivery
+    const updatedDelivery = await Delivery.findByPk(id, {
+      include: [
+        { model: User, as: "merchant", attributes: ["username"] },
+        { model: Status, as: "status_name", attributes: ["status", "color"] },
+        { model: User, as: "driver", attributes: ["username"] },
+      ]
+    });
+
+    res.json({
+      success: true,
+      message: "Delivery was updated successfully.",
+      data: updatedDelivery,
+    });
+  } catch (err) {
+    await t.rollback();
+    console.error("Error updating delivery:", err);
+    res.status(500).json({
+      success: false,
+      message: "Error updating delivery with id=" + id,
+      error: err.message,
+    });
+  }
 };
 
 

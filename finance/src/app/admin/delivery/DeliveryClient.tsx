@@ -138,6 +138,9 @@ const [isSubmitting, setIsSubmitting] = useState(false);
   const [isStatusModal, setIsStatusModal] = useState(false);
   const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
   const [isEditModal, setIsEditModal] = useState(false);
+  const [editModalItems, setEditModalItems] = useState<Item[]>([]);
+  const [editModalLoading, setEditModalLoading] = useState(false);
+  const [hasItemsLoaded, setHasItemsLoaded] = useState(false);
 
 
   // Add to your existing state variables
@@ -153,13 +156,30 @@ const [districts, setDistricts] = useState([
 const [selectedDistrict, setSelectedDistrict] = useState<number | null>(null);
 const [districtFilter, setDistrictFilter] = useState<number | null>(null);
 
-  const handleEditClick = (record: Delivery) => {
+  const handleEditClick = async (record: Delivery) => {
     setSelectedDelivery(record);
     form.setFieldsValue({
       phone: record.phone,
       address: record.address,
       price: record.price,
+      comment: record.comment || '',
     });
+    
+    // Fetch items if delivery has items
+    setEditModalLoading(true);
+    setHasItemsLoaded(false);
+    try {
+      const items = await fetchItemsForDelivery(record.id);
+      setEditModalItems(items);
+      setHasItemsLoaded(true); // Mark that we've checked for items
+    } catch (error) {
+      console.error('Error fetching items:', error);
+      setEditModalItems([]);
+      setHasItemsLoaded(true); // Still mark as loaded even on error
+    } finally {
+      setEditModalLoading(false);
+    }
+    
     setIsEditModal(true);
   };
 
@@ -167,11 +187,21 @@ const [districtFilter, setDistrictFilter] = useState<number | null>(null);
     try {
       const values = await form.validateFields();
   
-      const updateData = {
+      const updateData: any = {
         phone: values.phone,
         address: values.address,
         price: values.price,
+        comment: values.comment,
       };
+
+      // Include items array if we've loaded items (even if empty, to allow deleting all items)
+      if (hasItemsLoaded) {
+        updateData.items = editModalItems.map(item => ({
+          id: item.id, // Include id for existing items
+          good_id: item.good_id,
+          quantity: item.quantity,
+        }));
+      }
   
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/delivery/${selectedDelivery?.id}`, {
         method: 'PUT',
@@ -184,17 +214,35 @@ const [districtFilter, setDistrictFilter] = useState<number | null>(null);
       const result = await response.json();
   
       if (response.ok && result.success) {
-        console.log('Updated successfully:', result.data);
+        message.success('Delivery updated successfully');
         setIsEditModal(false);
-  
-        // Optionally refresh your delivery table here
+        setEditModalItems([]);
+        setHasItemsLoaded(false);
+        setRefreshKey(prev => prev + 1); // Refresh the table
       } else {
-        console.error('Failed to update delivery:', result.message);
+        message.error('Failed to update delivery: ' + (result.message || 'Unknown error'));
       }
   
     } catch (err) {
       console.error('Validation or request failed:', err);
+      message.error('Error updating delivery');
     }
+  };
+
+  const handleEditItemQuantity = (itemId: number, newQuantity: number) => {
+    if (newQuantity < 1) {
+      message.warning('Quantity must be at least 1');
+      return;
+    }
+    setEditModalItems(prev => 
+      prev.map(item => 
+        item.id === itemId ? { ...item, quantity: newQuantity } : item
+      )
+    );
+  };
+
+  const handleDeleteEditItem = (itemId: number) => {
+    setEditModalItems(prev => prev.filter(item => item.id !== itemId));
   };
   
 const baseColumns: ColumnsType<Delivery> = [
@@ -695,6 +743,13 @@ const handleDistrictFilterChange = (value: number | null) => {
   // Handle modal cancel
   const handleCancel = () => {
     setIsModalVisible(false);
+  };
+
+  const handleEditModalCancel = () => {
+    setIsEditModal(false);
+    setEditModalItems([]);
+    setHasItemsLoaded(false);
+    form.resetFields();
   };
 
   const handleCheckboxChange = () => {
@@ -1720,12 +1775,13 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
 </Modal>
     
       <Modal
-  title="Edit Phone & Address"
+  title="Edit Delivery"
   visible={isEditModal}
   onOk={handleEdit}
-  onCancel={handleCancel}
+  onCancel={handleEditModalCancel}
   okText="Save"
   cancelText="Cancel"
+  width={600}
 >
   <Form form={form} layout="vertical">
     <Form.Item name="phone" label="Phone" rules={[{ required: true, message: 'Please enter phone number' }]}>
@@ -1735,8 +1791,51 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
       <Input />
     </Form.Item>
     <Form.Item name="price" label="Price" rules={[{ required: true, message: 'Please enter Price' }]}>
-      <Input />
+      <InputNumber style={{ width: '100%' }} min={0} />
     </Form.Item>
+    <Form.Item name="comment" label="Comment" rules={[{ required: true, message: 'Please enter comment' }]}>
+      <Input.TextArea rows={3} />
+    </Form.Item>
+    
+    {editModalLoading ? (
+      <div style={{ textAlign: 'center', padding: '20px' }}>Loading items...</div>
+    ) : editModalItems.length > 0 ? (
+      <div>
+        <div style={{ marginBottom: 8, fontWeight: 500 }}>Items:</div>
+        <List
+          bordered
+          size="small"
+          dataSource={editModalItems}
+          renderItem={(item) => (
+            <List.Item
+              actions={[
+                <InputNumber
+                  key="quantity"
+                  min={1}
+                  value={item.quantity}
+                  onChange={(value) => handleEditItemQuantity(item.id, value || 1)}
+                  style={{ width: 80 }}
+                />,
+                <Button
+                  key="delete"
+                  danger
+                  size="small"
+                  icon={<DeleteOutlined />}
+                  onClick={() => handleDeleteEditItem(item.id)}
+                />
+              ]}
+            >
+              <div>
+                <strong>{item.good?.name || `Item #${item.good_id}`}</strong>
+                <div style={{ fontSize: '12px', color: '#666' }}>
+                  Quantity: {item.quantity}
+                </div>
+              </div>
+            </List.Item>
+          )}
+        />
+      </div>
+    ) : null}
   </Form>
 </Modal>
     </div>
