@@ -26,7 +26,9 @@ exports.create = async (req, res) => {
       shop_phone: req.body.shop_phone,
       contact_info: req.body.contact_info,
       role_id: req.body.role_id,
-      password: hashedPassword
+      password: hashedPassword,
+      account_number: req.body.account_number,
+      facebook_name: req.body.facebook_name
     };
 
     // Save User in the database

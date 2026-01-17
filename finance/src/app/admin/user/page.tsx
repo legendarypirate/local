@@ -30,6 +30,8 @@ interface User {
   phone: string;
   shop_phone?: string;
   contact_info?: string;
+  account_number?: string;
+  facebook_name?: string;
   role_id: number;
   createdAt: string;
   updatedAt: string;
@@ -217,6 +219,16 @@ export default function UsersPage() {
       render: (value) => value || '-',
     },
     {
+      title: 'Bank Account',
+      dataIndex: 'account_number',
+      render: (value) => value || '-',
+    },
+    {
+      title: 'Facebook Name',
+      dataIndex: 'facebook_name',
+      render: (value) => value || '-',
+    },
+    {
       title: 'Role',
       dataIndex: 'role_id',
       render: (role_id: number) => {
@@ -243,6 +255,8 @@ export default function UsersPage() {
                 email: record.email,
                 phone: record.phone,
                 shop_phone: record.shop_phone,
+                account_number: record.account_number,
+                facebook_name: record.facebook_name,
               });
               setEditModalVisible(true);
             }}
@@ -337,6 +351,14 @@ export default function UsersPage() {
             <Input placeholder="Shop phone number" />
           </Form.Item>
 
+          <Form.Item name="account_number" label="Bank Account">
+            <Input placeholder="Bank account number" />
+          </Form.Item>
+
+          <Form.Item name="facebook_name" label="Facebook Name">
+            <Input placeholder="Facebook name" />
+          </Form.Item>
+
           <Form.Item name="role_id" label="Role" rules={[{ required: true }]}>
             <Select placeholder="Select role">
               <Option value={1}>Admin</Option>
@@ -388,6 +410,12 @@ export default function UsersPage() {
           </Form.Item>
           <Form.Item name="shop_phone" label="Shop Phone">
             <Input placeholder="Shop phone number" />
+          </Form.Item>
+          <Form.Item name="account_number" label="Bank Account">
+            <Input placeholder="Bank account number" />
+          </Form.Item>
+          <Form.Item name="facebook_name" label="Facebook Name">
+            <Input placeholder="Facebook name" />
           </Form.Item>
           <Form.Item>
             <Space>

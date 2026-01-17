@@ -35,6 +35,10 @@ module.exports = (sequelize, Sequelize) => {
       address: {
         type: Sequelize.TEXT,
         allowNull: true
+      },
+      facebook_name: {
+        type: Sequelize.STRING,
+        allowNull: true
       }
     });
     return User;
