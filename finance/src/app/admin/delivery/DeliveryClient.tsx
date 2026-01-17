@@ -118,7 +118,7 @@ const [historyLoading, setHistoryLoading] = useState(false);
   const [status, setStatus] = useState<{ id: number; status: string }[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [products, setProducts] = useState<{ id: string; name: string }[]>([]);
+  const [products, setProducts] = useState<{ id: string; name: string; stock: number }[]>([]);
   const [permissions, setPermissions] = useState<string[]>([]);
 
   const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
@@ -520,6 +520,7 @@ const handleDistrictFilterChange = (value: number | null) => {
             const apiProducts = json.data.map((item: any) => ({
               id: item.id.toString(),
               name: item.name,
+              stock: item.stock || 0,
             }));
             setProducts(apiProducts);
           } else {
@@ -709,31 +710,48 @@ const handleDistrictFilterChange = (value: number | null) => {
   
     const productObj = products.find(p => p.id === selectedProduct);
   
-    if (productObj) {
-      setProductList(prev => {
-        // Add new item with current productPrice (from input)
-        const newList = [
-          ...prev,
-          {
-            productId: productObj.id,
-            productName: productObj.name,
-            quantity,
-            price: productPrice, // store input price per item here!
-          }
-        ];
-  
-        // Calculate total sum using each item's own price
-        const totalSum = newList.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  
-        if (totalSum > 0) {
-          form.setFieldsValue({ price: totalSum });
-        }
-  
-        return newList;
-      });
-    } else {
+    if (!productObj) {
       message.error("Сонгосон бараа олдсонгүй!");
+      return;
     }
+
+    // Check stock availability
+    // Calculate total quantity needed (including items already in the list)
+    const existingQuantity = productList
+      .filter(item => item.productId === selectedProduct)
+      .reduce((sum, item) => sum + item.quantity, 0);
+    
+    const totalQuantityNeeded = existingQuantity + quantity;
+    const availableStock = productObj.stock || 0;
+
+    if (totalQuantityNeeded > availableStock) {
+      message.error(
+        `Агуулахын үлдэгдэл хүрэлцэхгүй байна. Боломжтой: ${availableStock} ширхэг, Шаардлагатай: ${totalQuantityNeeded} ширхэг`
+      );
+      return;
+    }
+  
+    setProductList(prev => {
+      // Add new item with current productPrice (from input)
+      const newList = [
+        ...prev,
+        {
+          productId: productObj.id,
+          productName: productObj.name,
+          quantity,
+          price: productPrice, // store input price per item here!
+        }
+      ];
+  
+      // Calculate total sum using each item's own price
+      const totalSum = newList.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  
+      if (totalSum > 0) {
+        form.setFieldsValue({ price: totalSum });
+      }
+  
+      return newList;
+    });
   
     setSelectedProduct(null);
     setQuantity(1);
@@ -1306,9 +1324,13 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
           placeholder="Бараа сонгох"
           onChange={setSelectedProduct}
           style={{ width: '100%' }}
+          showSearch
+          optionFilterProp="children"
         >
           {products.map(p => (
-            <Option key={p.id} value={p.id}>{p.name}</Option>
+            <Option key={p.id} value={p.id}>
+              {p.name} (Үлдэгдэл: {p.stock})
+            </Option>
           ))}
         </Select>
 

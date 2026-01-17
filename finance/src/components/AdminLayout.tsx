@@ -106,7 +106,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       permission: 'good:view_good',
       children: [
         { key: '/admin/good', icon: <ShoppingOutlined />, label: 'Барааны жагсаалт', permission: 'good:view_good' },
-        { key: '/admin/request', icon: <BarChartOutlined />, label: 'Барааны хүсэлт', permission: 'good:view_good' },
       ],
     },
     {
