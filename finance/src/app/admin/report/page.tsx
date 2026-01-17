@@ -414,6 +414,11 @@ export default function DeliveryPage() {
           loading={loadingOptions}
           allowClear
           disabled={!merchantFilter}
+          showSearch
+          optionFilterProp="label"
+          filterOption={(input, option) =>
+            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          }
           options={secondOptions.map((o) => ({ label: o.username, value: o.id }))}
         />
         <RangePicker
