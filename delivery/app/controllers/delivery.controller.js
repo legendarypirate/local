@@ -548,7 +548,7 @@ exports.findOne = async (req, res) => {
         {
           model: User,
           as: 'merchant',     // alias in model associations
-          attributes: ['id', 'username','phone'] // select only what you need
+          attributes: ['id', 'username','phone', 'shop_phone'] // select only what you need
         },
         {
           model: Status,

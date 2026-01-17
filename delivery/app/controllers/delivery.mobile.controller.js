@@ -57,7 +57,7 @@ exports.findWithStatus = async (req, res) => {
         {
           model: User,
           as: 'merchant',
-          attributes: ['username']
+          attributes: ['username', 'shop_phone']
         }
       ],
       logging: (sql, timing) => {
