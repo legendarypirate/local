@@ -170,8 +170,15 @@ export default function UsersPage() {
       const result = await response.json();
 
       if (response.ok && result.success) {
+        // Update local state instead of refetching to maintain order
+        setUsers((prevUsers) =>
+          prevUsers.map((user) =>
+            user.id === editingUser.id
+              ? { ...user, ...values, updatedAt: new Date().toISOString() }
+              : user
+          )
+        );
         message.success('Хэрэглэгч амжилттай шинэчлэгдлээ');
-        fetchData();
         setEditModalVisible(false);
         setEditingUser(null);
         editForm.resetFields();
