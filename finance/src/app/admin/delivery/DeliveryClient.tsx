@@ -1588,26 +1588,29 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
 
     {pullFromWarehouse && (
       <>
+        {/* Row 1: Product Selection */}
         <Row gutter={8} style={{ marginBottom: 10 }}>
-          <Col span={8}>
-          <Select
-          value={selectedProduct}
-          placeholder="Бараа сонгох"
-          onChange={setSelectedProduct}
-          style={{ width: '100%' }}
-          showSearch
-          optionFilterProp="children"
-        >
-          {products.map(p => (
-            <Option key={p.id} value={p.id}>
-              {p.name} (Үлдэгдэл: {p.stock})
-            </Option>
-          ))}
-        </Select>
-
+          <Col span={24}>
+            <Select
+              value={selectedProduct}
+              placeholder="Бараа сонгох"
+              onChange={setSelectedProduct}
+              style={{ width: '100%' }}
+              showSearch
+              optionFilterProp="children"
+            >
+              {products.map(p => (
+                <Option key={p.id} value={p.id}>
+                  {p.name} (Үлдэгдэл: {p.stock})
+                </Option>
+              ))}
+            </Select>
           </Col>
+        </Row>
 
-          <Col span={6}>
+        {/* Row 2: Quantity, Price, and Add Button */}
+        <Row gutter={8} style={{ marginBottom: 10 }}>
+          <Col span={10}>
             <InputNumber
               min={1}
               value={quantity}
@@ -1617,20 +1620,20 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
             />
           </Col>
 
-          <Col span={6}>
+          <Col span={10}>
             <InputNumber
               min={0}
               value={productPrice}
               onChange={value => setProductPrice(value || 0)}
               style={{ width: '100%' }}
-              placeholder="Үнэ"
+              placeholder="Нэгж үнэ"
               formatter={value => `${value} ₮`}
               parser={value => {
                 if (!value) return 0; // Return 0 when empty
                 const numericString = value.replace(/₮\s?|(,*)/g, '');
                 return Number(numericString);
               }}
-                      />
+            />
           </Col>
 
           <Col span={4}>
