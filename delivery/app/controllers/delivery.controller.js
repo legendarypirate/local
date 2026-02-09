@@ -777,38 +777,77 @@ exports.infoupdate = (req, res) => {
 
 // Delete a category with the specified id in the request
 // Delete a category with the specified id in the request
-exports.delete = (req, res) => {
+exports.delete = async (req, res) => {
   const id = req.params.id;
+  const t = await db.sequelize.transaction();
 
-  Delivery.destroy({
-    where: { id: id }
-  })
-    .then(num => {
-      if (num == 1) {
-        res.json({ success: true, message: "Category was deleted successfully!" });
-
-      } else {
-        res.send({
-          message: `Cannot delete Categories with id=${id}. Maybe category was not found!`
-        });
-      }
-    })
-    .catch(err => {
-      res.status(500).send({
-        message: "Could not delete category with id=" + id
-      });
+  try {
+    // Get all items for the delivery being deleted
+    const items = await DeliveryItem.findAll({
+      where: { delivery_id: id },
+      transaction: t,
     });
+
+    // Restore stock for each item
+    for (const item of items) {
+      await Good.increment(
+        { stock: item.quantity },
+        { where: { id: item.good_id }, transaction: t }
+      );
+    }
+
+    // Delete the delivery
+    const num = await Delivery.destroy({
+      where: { id: id },
+      transaction: t
+    });
+
+    await t.commit();
+
+    if (num === 1) {
+      res.json({ success: true, message: "Category was deleted successfully!" });
+    } else {
+      res.send({
+        message: `Cannot delete Categories with id=${id}. Maybe category was not found!`
+      });
+    }
+  } catch (err) {
+    await t.rollback();
+    res.status(500).send({
+      message: "Could not delete category with id=" + id
+    });
+  }
 };
 
 exports.deleteMultiple = async (req, res) => {
   const { ids } = req.body;
+  const t = await db.sequelize.transaction();
+  
   try {
+    // Get all items for the deliveries being deleted
+    const items = await DeliveryItem.findAll({
+      where: { delivery_id: ids },
+      transaction: t,
+    });
+
+    // Restore stock for each item
+    for (const item of items) {
+      await Good.increment(
+        { stock: item.quantity },
+        { where: { id: item.good_id }, transaction: t }
+      );
+    }
+
+    // Mark deliveries as deleted
     await Delivery.update(
       { is_deleted: true },
-      { where: { id: ids } }
+      { where: { id: ids }, transaction: t }
     );
+
+    await t.commit();
     res.json({ success: true });
   } catch (err) {
+    await t.rollback();
     res.status(500).json({ success: false, message: err.message });
   }
 };
