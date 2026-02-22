@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Table, Button, Space, Select, Tag, Switch, DatePicker,Drawer } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {EyeOutlined } from '@ant-design/icons';
@@ -13,6 +13,18 @@ dayjs.extend(isSameOrBefore);
 
 const { Option } = Select;
 const { RangePicker } = DatePicker;
+
+function getStoredUser(): { id: number; role: number; username?: string } | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('user');
+    if (!raw) return null;
+    const user = JSON.parse(raw);
+    return user && user.id != null && user.role != null ? user : null;
+  } catch {
+    return null;
+  }
+}
 
 // ---- Delivery interface ----
 interface SummaryType {
@@ -76,33 +88,28 @@ export default function DeliveryPage() {
   const [selectedReportId, setSelectedReportId] = useState<number | null>(null);
   const [drawerLoading, setDrawerLoading] = useState(false);
   
-  // Get user data from localStorage
+  const storedUser = useMemo(() => getStoredUser(), []);
+  const isMerchant = storedUser?.role === 2;
+  const merchantUserId = isMerchant && storedUser ? String(storedUser.id) : null;
+
   const [userRole, setUserRole] = useState<number | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [username, setUsername] = useState<string | null>(null);
 
-  // Initialize user data from localStorage
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const userData = localStorage.getItem('user');
-      const role = localStorage.getItem('role');
-      
-      if (userData) {
-        const user = JSON.parse(userData);
-        setUserRole(user.role);
-        setUserId(user.id.toString());
-        setUsername(user.username);
-        
-        // If user is merchant (role 2), automatically set merchant filter and ID
-        if (user.role === 2) {
-          setMerchantFilter('1');
-          setSecondValue(user.id.toString());
-        }
-      } else if (role) {
-        setUserRole(parseInt(role));
+    if (storedUser) {
+      setUserRole(storedUser.role);
+      setUserId(String(storedUser.id));
+      setUsername(storedUser.username ?? null);
+      if (storedUser.role === 2) {
+        setMerchantFilter('1');
+        setSecondValue(String(storedUser.id));
       }
+    } else if (typeof window !== 'undefined') {
+      const role = localStorage.getItem('role');
+      if (role) setUserRole(parseInt(role));
     }
-  }, []);
+  }, [storedUser]);
 
   const deliveryColumns: ColumnsType<DeliveryType> = [
     {
@@ -142,10 +149,7 @@ export default function DeliveryPage() {
   useEffect(() => {
     document.title = 'Тайлан харах';
 
-    // Skip fetching options if user is merchant (role 2)
-    if (userRole === 2) {
-      return;
-    }
+    if (isMerchant) return;
 
     const fetchOptions = async () => {
       if (!merchantFilter) {
@@ -178,7 +182,7 @@ export default function DeliveryPage() {
     setSecondValue(null);
     setSummary(null);
     setTableData([]);
-  }, [merchantFilter, userRole]);
+  }, [merchantFilter, isMerchant]);
 
   const handleShowDeliveries = async (reportId: number) => {
     setDrawerVisible(true);
@@ -263,8 +267,7 @@ export default function DeliveryPage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {/* Filters & Controls */}
       <div className="flex gap-4 items-center w-full p-4" style={{ flexShrink: 0 }}>
-        {/* Hide switch for merchant users */}
-        {userRole !== 2 && (
+        {!isMerchant && (
           <Switch
             checked={isReportMergeMode}
             onChange={(checked) => {
@@ -280,8 +283,7 @@ export default function DeliveryPage() {
           />
         )}
         
-        {/* Hide merchant filter for merchant users */}
-        {userRole !== 2 && (
+        {!isMerchant && (
           <Select
             value={merchantFilter}
             onChange={(value) => {
@@ -299,8 +301,7 @@ export default function DeliveryPage() {
           </Select>
         )}
 
-        {/* Show user info for merchant users, hide selection for others */}
-        {userRole === 2 ? (
+        {isMerchant ? (
           <div style={{ 
             padding: '8px 12px', 
             border: '1px solid #d9d9d9', 
@@ -309,7 +310,7 @@ export default function DeliveryPage() {
             minWidth: '200px'
           }}>
             <div style={{ fontWeight: 'bold' }}>Мерчант:</div>
-            <div>{username || 'Loading...'}</div>
+            <div>{storedUser?.username ?? username ?? '...'}</div>
           </div>
         ) : (
           <Select
@@ -334,8 +335,7 @@ export default function DeliveryPage() {
           onChange={(dates) => {
             setDateRange(dates ?? [null, null]);
             if (dates && dates[0] && dates[1]) {
-              // Use the appropriate user ID based on role
-              const targetUserId = userRole === 2 ? userId : secondValue;
+              const targetUserId = isMerchant ? merchantUserId : secondValue;
               if (targetUserId) {
                 fetchSummary(
                   targetUserId,

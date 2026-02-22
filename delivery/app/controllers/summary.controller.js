@@ -26,12 +26,13 @@ exports.create = async (req, res) => {
 
 // Retrieve all Summaries
 exports.findAll = async (req, res) => {
-  const userId = req.query.user_id;
+  const rawUserId = req.query.user_id;
+  const userId = rawUserId != null && rawUserId !== '' ? parseInt(rawUserId, 10) : null;
   const { startDate, endDate } = req.query;
 
   let where = {};
 
-  if (userId) {
+  if (userId != null && !Number.isNaN(userId)) {
     where[Op.or] = [
       { driver_id: userId },
       { merchant_id: userId }
