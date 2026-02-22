@@ -393,39 +393,46 @@ export default function DeliveryPage() {
 
       {/* Delivery Data Table (merchant: deliveries from findAllWithDate; admin: summary list from /api/summary) */}
       <div style={{ flexGrow: 1, overflowY: 'auto', padding: '0 24px 80px 24px' }}>
-        <Table
-          columns={isMerchant ? deliveryColumns : summaryColumns}
-          dataSource={isMerchant ? merchantDeliveries : tableData}
-          loading={loadingDeliveries || fetchingSummary}
-          pagination={
-            isMerchant
-              ? {
-                  current: pagination.current,
-                  pageSize: pagination.pageSize,
-                  total: merchantTotal,
-                  onChange: (page, pageSize) => {
-                    setPagination((prev) => ({ ...prev, current: page, pageSize: pageSize || prev.pageSize }));
-                    if (dateRange[0] && dateRange[1] && merchantUserId) {
-                      fetchMerchantDeliveries(
-                        merchantUserId,
-                        dateRange[0].format('YYYY-MM-DD'),
-                        dateRange[1].format('YYYY-MM-DD'),
-                        page,
-                        pageSize || pagination.pageSize
-                      );
-                    }
-                  },
+        {isMerchant ? (
+          <Table<DeliveryType>
+            columns={deliveryColumns}
+            dataSource={merchantDeliveries}
+            loading={loadingDeliveries || fetchingSummary}
+            pagination={{
+              current: pagination.current,
+              pageSize: pagination.pageSize,
+              total: merchantTotal,
+              onChange: (page, pageSize) => {
+                setPagination((prev) => ({ ...prev, current: page, pageSize: pageSize || prev.pageSize }));
+                if (dateRange[0] && dateRange[1] && merchantUserId) {
+                  fetchMerchantDeliveries(
+                    merchantUserId,
+                    dateRange[0].format('YYYY-MM-DD'),
+                    dateRange[1].format('YYYY-MM-DD'),
+                    page,
+                    pageSize || pagination.pageSize
+                  );
                 }
-              : {
-                  current: pagination.current,
-                  pageSize: pagination.pageSize,
-                  total: pagination.total,
-                  onChange: (page, pageSize) => setPagination({ current: page, pageSize, total: pagination.total }),
-                }
-          }
-          rowKey="id"
-          scroll={{ x: 1200 }}
-        />
+              },
+            }}
+            rowKey="id"
+            scroll={{ x: 1200 }}
+          />
+        ) : (
+          <Table<SummaryType>
+            columns={summaryColumns}
+            dataSource={tableData}
+            loading={loadingDeliveries || fetchingSummary}
+            pagination={{
+              current: pagination.current,
+              pageSize: pagination.pageSize,
+              total: pagination.total,
+              onChange: (page, pageSize) => setPagination({ current: page, pageSize, total: pagination.total }),
+            }}
+            rowKey="id"
+            scroll={{ x: 1200 }}
+          />
+        )}
       </div>
 
       {/* Summary Table Fixed at Bottom */}
