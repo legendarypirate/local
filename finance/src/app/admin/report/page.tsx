@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Table, Button, Space, Select, Tag, Switch, DatePicker, notification, InputNumber } from 'antd';
 import type { TableColumnsType } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
@@ -45,8 +45,8 @@ interface Delivery {
   delivered_at?: string;
 }
 
-// Delivery Table Columns
-const deliveryColumns: TableColumnsType<Delivery> = [
+// Delivery Table Columns (base; merchant view excludes Мерчанд нэр and Жолооч нэр)
+const deliveryColumnsBase: TableColumnsType<Delivery> = [
   {
     title: 'Үүссэн огноо',
     dataIndex: 'createdAt',
@@ -61,6 +61,7 @@ const deliveryColumns: TableColumnsType<Delivery> = [
     title: 'Мерчанд нэр',
     dataIndex: ['merchant', 'username'],
     render: (_, record) => record.merchant?.username || '-',
+    key: 'merchant',
   },
   { title: 'Утас', dataIndex: 'phone' },
   { title: 'Хаяг', dataIndex: 'address' },
@@ -71,8 +72,8 @@ const deliveryColumns: TableColumnsType<Delivery> = [
       <Tag color={status_name.color}>{status_name.status}</Tag>
     ),
   },
-  { 
-    title: 'Үнэ', 
+  {
+    title: 'Үнэ',
     dataIndex: 'price',
     render: (price: number) => price.toLocaleString() + ' ₮',
   },
@@ -81,6 +82,7 @@ const deliveryColumns: TableColumnsType<Delivery> = [
     title: 'Жолооч нэр',
     dataIndex: ['driver', 'username'],
     render: (_, record) => record.driver?.username || '-',
+    key: 'driver',
   },
 ];
 
@@ -136,70 +138,87 @@ export default function DeliveryPage() {
   const [deliveryList, setDeliveryList] = useState<Delivery[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
-  const summaryColumns: TableColumnsType<SummaryType> = [
-    { title: 'нэр', dataIndex: 'driverName', key: 'driverName' },
-    {
-      title: 'Нийт хүргэлт',
-      dataIndex: 'numberDelivery',
-      key: 'numberDelivery',
-      render: (value?: number) => value?.toLocaleString() ?? '—',
-    },
-    {
-      title: 'Нийт үнэ',
-      dataIndex: 'totalPrice',
-      key: 'totalPrice',
-      render: (value: number, record: SummaryType) => {
-        const deduction = record.extraDeduction ?? 0;
-        const afterDeduction = value - deduction;
-        if (deduction > 0) {
-          return (
-            <span>
-              <span style={{ textDecoration: 'line-through', color: '#999', marginRight: 4 }}>
-                {value.toLocaleString()} ₮
+  const summaryColumns: TableColumnsType<SummaryType> = useMemo(() => {
+    const base = [
+      { title: 'нэр', dataIndex: 'driverName', key: 'driverName' },
+      {
+        title: 'Нийт хүргэлт',
+        dataIndex: 'numberDelivery',
+        key: 'numberDelivery',
+        render: (value?: number) => value?.toLocaleString() ?? '—',
+      },
+      {
+        title: 'Нийт үнэ',
+        dataIndex: 'totalPrice',
+        key: 'totalPrice',
+        render: (value: number, record: SummaryType) => {
+          const deduction = record.extraDeduction ?? 0;
+          const afterDeduction = value - deduction;
+          if (deduction > 0) {
+            return (
+              <span>
+                <span style={{ textDecoration: 'line-through', color: '#999', marginRight: 4 }}>
+                  {value.toLocaleString()} ₮
+                </span>
+                <span>{afterDeduction.toLocaleString()} ₮</span>
               </span>
-              <span>{afterDeduction.toLocaleString()} ₮</span>
-            </span>
-          );
-        }
-        return <span>{value.toLocaleString()} ₮</span>;
-      },
-    },
-    {
-      title: 'Жолоочид олгох',
-      dataIndex: 'forDriver',
-      key: 'forDriver',
-      render: (value: number) => value.toLocaleString() + ' ₮',
-    },
-    {
-      title: 'Нэмэлт хасалт',
-      key: 'extraDeduction',
-      render: (_: unknown, record: SummaryType) => (
-        <InputNumber
-          min={0}
-          max={record.totalPrice ?? 0}
-          value={record.extraDeduction ?? 0}
-          onChange={(val) => {
-            const v = typeof val === 'number' ? val : 0;
-            setTableData((prev) =>
-              prev.map((row) =>
-                row.key === record.key ? { ...row, extraDeduction: v } : row
-              )
             );
-          }}
-          style={{ width: 120 }}
-          addonAfter="₮"
-        />
-      ),
-    },
-    {
-      title: 'Зөрүү',
-      key: 'account',
-      render: (_: unknown, record: SummaryType) => {
-        const diff = record.totalPrice - record.forDriver;
-        return <span>{diff.toLocaleString()} ₮</span>;
+          }
+          return <span>{value.toLocaleString()} ₮</span>;
+        },
       },
-    },
-  ];
+      {
+        title: isMerchant ? 'Компанид олгох' : 'Жолоочид олгох',
+        dataIndex: 'forDriver',
+        key: 'forDriver',
+        render: (value: number) => value.toLocaleString() + ' ₮',
+      },
+      ...(!isMerchant
+        ? [
+            {
+              title: 'Нэмэлт хасалт',
+              key: 'extraDeduction',
+              render: (_: unknown, record: SummaryType) => (
+                <InputNumber
+                  min={0}
+                  max={record.totalPrice ?? 0}
+                  value={record.extraDeduction ?? 0}
+                  onChange={(val) => {
+                    const v = typeof val === 'number' ? val : 0;
+                    setTableData((prev) =>
+                      prev.map((row) =>
+                        row.key === record.key ? { ...row, extraDeduction: v } : row
+                      )
+                    );
+                  }}
+                  style={{ width: 120 }}
+                  addonAfter="₮"
+                />
+              ),
+            },
+          ]
+        : []),
+      {
+        title: 'Зөрүү',
+        key: 'account',
+        render: (_: unknown, record: SummaryType) => {
+          const diff = record.totalPrice - record.forDriver;
+          return <span>{diff.toLocaleString()} ₮</span>;
+        },
+      },
+    ];
+    return base as TableColumnsType<SummaryType>;
+  }, [isMerchant]);
+
+  const deliveryColumns = useMemo(
+    () =>
+      isMerchant
+        ? deliveryColumnsBase.filter(
+            (col) => col.title !== 'Мерчанд нэр' && col.title !== 'Жолооч нэр'
+          )
+        : deliveryColumnsBase,
+    [isMerchant]
+  );
 
  const rowSelection = {
   selectedRowKeys,
@@ -602,7 +621,7 @@ export default function DeliveryPage() {
             pageSize: pagination.pageSize,
             total: pagination.total,
             showSizeChanger: true,
-            pageSizeOptions: ['100', '200', '500', '1000'],
+            pageSizeOptions: isMerchant ? ['50', '100', '200', '1000'] : ['100', '200', '500', '1000'],
             onChange: (page, pageSize) => {
               setPagination((prev) => ({ ...prev, current: page, pageSize }));
               if (dateRange[0] && dateRange[1] && effectiveSecondValue) {
