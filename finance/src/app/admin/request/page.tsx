@@ -163,6 +163,7 @@ export default function UsersPage() {
   const handleEdit = (record: User) => {
     setEditingUser(record);
     editForm.setFieldsValue({
+      username: record.username,
       phone: record.phone,
       account_number: record.account_number,
       bank: record.bank,
@@ -186,6 +187,7 @@ export default function UsersPage() {
 
       // Send multiple fields to update
       const updateData: Partial<User> = {};
+      if (values.username !== undefined) updateData.username = values.username;
       if (values.phone !== undefined) updateData.phone = values.phone;
       if (values.account_number !== undefined) updateData.account_number = values.account_number;
       if (values.bank !== undefined) updateData.bank = values.bank;
@@ -421,6 +423,13 @@ export default function UsersPage() {
         width={500}
       >
         <Form layout="vertical" form={editForm}>
+          <Form.Item 
+            name="username" 
+            label="Username" 
+            rules={[{ required: true, message: 'Username оруулна уу' }]}
+          >
+            <Input placeholder="Username" />
+          </Form.Item>
           <Form.Item 
             name="phone" 
             label="Утасны дугаар" 
