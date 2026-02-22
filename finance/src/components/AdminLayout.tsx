@@ -232,8 +232,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const onLogoutClick = () => {
     setUserDropdownOpen(false);
-    // Show modal after dropdown has closed so it is not unmounted with the dropdown
-    setTimeout(() => showLogoutConfirm(), 0);
+    // Defer modal until after dropdown closes (fixes production where overlay unmounts first)
+    setTimeout(() => showLogoutConfirm(), 50);
   };
 
   const userDropdownContent = (

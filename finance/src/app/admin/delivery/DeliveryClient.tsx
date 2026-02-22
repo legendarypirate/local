@@ -731,31 +731,35 @@ const handleKhorooFilterChange = (value: number | null) => {
       return;
     }
 
-    Modal.confirm({
-      title: 'Хүргэлт устгах',
-      content: 'Та энэ хүргэлтийг устгахдаа итгэлтэй байна уу?',
-      okText: "Тийм",
-      cancelText: "Үгүй",
-      okButtonProps: { danger: true },
-      onOk: async () => {
-        try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/delivery/${deliveryId}`, {
-            method: "DELETE",
-            headers: {
-              "Content-Type": "application/json",
-            },
-          });
+    // Defer so modal opens after click handling (fixes production where table/overlay can unmount)
+    const id = deliveryId;
+    setTimeout(() => {
+      Modal.confirm({
+        title: 'Хүргэлт устгах',
+        content: 'Та энэ хүргэлтийг устгахдаа итгэлтэй байна уу?',
+        okText: "Тийм",
+        cancelText: "Үгүй",
+        okButtonProps: { danger: true },
+        onOk: async () => {
+          try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/delivery/${id}`, {
+              method: "DELETE",
+              headers: {
+                "Content-Type": "application/json",
+              },
+            });
 
-          if (!response.ok) throw new Error("Амжилтгүй боллоо");
+            if (!response.ok) throw new Error("Амжилтгүй боллоо");
 
-          message.success("Амжилттай устгагдлаа");
-          setRefreshKey(prev => prev + 1); // Refresh the table
-        } catch (error) {
-          const err = error as Error;
-          message.error("Алдаа гарлаа: " + err.message);
-        }
-      },
-    });
+            message.success("Амжилттай устгагдлаа");
+            setRefreshKey(prev => prev + 1); // Refresh the table
+          } catch (error) {
+            const err = error as Error;
+            message.error("Алдаа гарлаа: " + err.message);
+          }
+        },
+      });
+    }, 0);
   };
 
   const handleDelete = async () => {
@@ -767,40 +771,44 @@ const handleKhorooFilterChange = (value: number | null) => {
       message.warning("Устгах боломжгүй хүргэлт байна.");
       return;
     }
-  
-    Modal.confirm({
-      title: `Та ${selectedRowKeys.length} ширхэг хүргэлтийг устгахдаа итгэлтэй байна уу?`,
-      okText: "Тийм",
-      cancelText: "Үгүй",
-      onOk: async () => {
-        try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/delivery/delete-multiple`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ ids: selectedRowKeys }),
-          });
-  
-          if (!response.ok) throw new Error("Амжилтгүй боллоо");
-  
-          message.success("Амжилттай устгагдлаа");
-  
-          const refreshed = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/delivery`);
-          const refreshedResult = await refreshed.json();
-          if (refreshedResult.success) {
-            setDeliveryData(refreshedResult.data);
+
+    const keysToDelete = [...selectedRowKeys];
+    // Defer so modal opens after click handling (fixes production)
+    setTimeout(() => {
+      Modal.confirm({
+        title: `Та ${keysToDelete.length} ширхэг хүргэлтийг устгахдаа итгэлтэй байна уу?`,
+        okText: "Тийм",
+        cancelText: "Үгүй",
+        onOk: async () => {
+          try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/delivery/delete-multiple`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ ids: keysToDelete }),
+            });
+
+            if (!response.ok) throw new Error("Амжилтгүй боллоо");
+
+            message.success("Амжилттай устгагдлаа");
+
+            const refreshed = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/delivery`);
+            const refreshedResult = await refreshed.json();
+            if (refreshedResult.success) {
+              setDeliveryData(refreshedResult.data);
+            }
+
+            form.resetFields();
+            setIsDrawerVisible(false);
+            setSelectedRowKeys([]);
+          } catch (error) {
+            const err = error as Error;
+            message.error("Алдаа гарлаа: " + err.message);
           }
-  
-          form.resetFields();
-          setIsDrawerVisible(false);
-          setSelectedRowKeys([]);
-        }  catch (error) {
-          const err = error as Error;
-          message.error("Алдаа гарлаа: " + err.message);
-        }
-      },
-    });
+        },
+      });
+    }, 0);
   };
   
   // Merchant Select onChange
