@@ -112,7 +112,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const menuItems: MenuItemType[] = [
     { key: '/admin', icon: <DashboardOutlined />, label: 'Хянах самбар', permission: 'dashboard:view_dashboard' },
     { key: '/admin/delivery', icon: <TruckOutlined />, label: 'Хүргэлт', permission: 'delivery:view_delivery' },
-    { key: '/admin/driver', icon: <UserOutlined />, label: 'Жолооч', permission: 'delivery:view_log' },
+    { key: '/admin/driver', icon: <UserOutlined />, label: 'Жолооч', permission: 'log:view_log' },
     { key: '/admin/order', icon: <ShoppingCartOutlined />, label: 'Татан авалт', permission: 'order:view_order' },
     { key: '/admin/region', icon: <AppstoreAddOutlined />, label: 'Бүс', permission: 'region:view_region' },
     { key: '/admin/notification', icon: <BellOutlined />, label: 'Масс мэдэгдэл', permission: 'notification:view_notification' },
