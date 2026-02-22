@@ -12,6 +12,7 @@ module.exports = app => {
     // Retrieve all published Tutorials
     router.get("/published", user.findAllPublished);
     router.get("/drivers", user.findDrivers); // ✅ NEW ROUTE HERE
+    router.get("/drivers-with-stats", user.findDriversWithDeliveryCount);
 
     // Retrieve a single Tutorial with id
     router.get("/:id", user.findOne);

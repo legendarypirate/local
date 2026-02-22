@@ -1,6 +1,8 @@
 const db = require("../models");
 const User = db.users;
+const Delivery = db.deliveries;
 const Op = db.Sequelize.Op;
+const sequelize = db.sequelize;
 const bcrypt = require('bcryptjs');
 const saltRounds = 10; // Number of salt rounds for bcrypt
 
@@ -68,6 +70,40 @@ exports.findDrivers = async (req, res) => {
     res.status(500).send({
       success: false,
       message: err.message || "Some error occurred while retrieving drivers."
+    });
+  }
+};
+
+/**
+ * Get all drivers with count of deliveries where status = 2 (driver is carrying).
+ */
+exports.findDriversWithDeliveryCount = async (req, res) => {
+  try {
+    const drivers = await User.findAll({
+      where: { role_id: 3 },
+      attributes: ['id', 'username']
+    });
+
+    const countByDriver = await sequelize.query(
+      `SELECT driver_id, COUNT(*) as count FROM deliveries WHERE status = 2 AND driver_id IS NOT NULL GROUP BY driver_id`,
+      { type: sequelize.QueryTypes.SELECT }
+    );
+    const countMap = {};
+    (countByDriver || []).forEach((row) => {
+      if (row && row.driver_id != null) countMap[row.driver_id] = parseInt(row.count, 10) || 0;
+    });
+
+    const data = drivers.map((d) => ({
+      id: d.id,
+      username: d.username,
+      deliveryCountStatus2: countMap[d.id] || 0
+    }));
+
+    res.send({ success: true, data });
+  } catch (err) {
+    res.status(500).send({
+      success: false,
+      message: err.message || "Some error occurred while retrieving drivers with delivery count."
     });
   }
 };

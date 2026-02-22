@@ -188,6 +188,15 @@ export default function DeliveryPage() {
 
   const handleEdit = async () => {
     try {
+      // Merchant can only edit deliveries with status 1
+      if (isMerchant && selectedDelivery) {
+        const statusVal = typeof selectedDelivery.status === 'number' ? selectedDelivery.status : parseInt(String(selectedDelivery.status), 10);
+        if (statusVal !== 1 && selectedDelivery.status_name?.status !== 'шинэ') {
+          msg.error('Зөвхөн шинэ хүргэлтийг засах боломжтой');
+          return;
+        }
+      }
+
       const values = await form.validateFields();
 
       const updateData: any = {
@@ -319,7 +328,6 @@ export default function DeliveryPage() {
       title: 'Үйлдэл',
       key: 'actions',
       render: (_: any, record: Delivery) => {
-        // Check if status is 1 (new delivery) - handle both numeric and string status
         const statusValue = typeof record.status === 'number' ? record.status : parseInt(String(record.status), 10);
         const isNewDelivery = statusValue === 1 || record.status_name?.status === 'шинэ';
 
@@ -356,8 +364,40 @@ export default function DeliveryPage() {
     }
   ];
 
+  // Merchant: Edit only for status 1, History for all; no Delete. Admin: full actions.
+  const merchantActionsColumn: TableColumnsType<Delivery>[0] = {
+    title: 'Үйлдэл',
+    key: 'actions',
+    render: (_: any, record: Delivery) => {
+      const statusValue = typeof record.status === 'number' ? record.status : parseInt(String(record.status), 10);
+      const canEdit = statusValue === 1 || record.status_name?.status === 'шинэ';
+
+      return (
+        <Space>
+          {canEdit && (
+            <Button
+              type="link"
+              icon={<EditOutlined />}
+              onClick={() => handleEditClick(record)}
+            >
+              Edit
+            </Button>
+          )}
+          <Button
+            type="link"
+            icon={<EyeOutlined />}
+            onClick={() => handleViewHistory(record.id)}
+            loading={historyLoading}
+          >
+            History
+          </Button>
+        </Space>
+      );
+    },
+  };
+
   const columns: TableColumnsType<Delivery> = isMerchant
-    ? baseColumns.filter(col => col.key !== 'merchant' && col.key !== 'driver' && col.key !== 'actions') as TableColumnsType<Delivery>
+    ? ([...baseColumns.filter(col => col.key !== 'merchant' && col.key !== 'driver' && col.key !== 'actions'), merchantActionsColumn] as TableColumnsType<Delivery>)
     : baseColumns;
 
   const merchantId = isMerchant ? user.id : null;
