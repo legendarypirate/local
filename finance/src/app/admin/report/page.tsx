@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Table, Button, Space, Select, Tag, Switch, DatePicker, notification } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
@@ -14,6 +14,18 @@ dayjs.extend(isSameOrBefore);
 
 const { Option } = Select;
 const { RangePicker } = DatePicker;
+
+function getCurrentUser(): { id: number; role: number; name?: string } | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('user');
+    if (!raw) return null;
+    const user = JSON.parse(raw);
+    return user && user.id != null && user.role != null ? user : null;
+  } catch {
+    return null;
+  }
+}
 
 // ---- Delivery interface ----
 interface Delivery {
@@ -120,14 +132,18 @@ type OptionType = {
 };
 
 export default function DeliveryPage() {
+  const currentUser = useMemo(() => getCurrentUser(), []);
+  const isMerchant = currentUser?.role === 2;
+  const merchantId = isMerchant ? String(currentUser!.id) : null;
+
   // Delivery states
   const [pagination, setPagination] = useState({ current: 1, pageSize: 100, total: 0 });
   const [loadingDeliveries, setLoadingDeliveries] = useState(false);
 
-  // Summary & filters states
-  const [merchantFilter, setMerchantFilter] = useState<string | null>(null);
+  // Summary & filters (merchant: pre-set to self)
+  const [merchantFilter, setMerchantFilter] = useState<string | null>(() => (currentUser?.role === 2 ? '1' : null));
   const [secondOptions, setSecondOptions] = useState<OptionType[]>([]);
-  const [secondValue, setSecondValue] = useState<string | null>(null);
+  const [secondValue, setSecondValue] = useState<string | null>(() => (currentUser?.role === 2 ? String(currentUser.id) : null));
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
   const [isReportMergeMode, setIsReportMergeMode] = useState(true);
@@ -150,12 +166,12 @@ export default function DeliveryPage() {
     }, 0);
     
     const numberDelivery = selectedRows.length;
-    const isMerchant = merchantFilter === '1';
-    const feePerDelivery = isMerchant ? 6000 : 4000;
+    const isMerchantFee = merchantFilter === '1';
+    const feePerDelivery = isMerchantFee ? 6000 : 4000;
     const totalFee = numberDelivery * feePerDelivery;
     const account = totalPrice - totalFee;
     
-    const driverName = isMerchant
+    const driverName = isMerchantFee
       ? selectedRows[0]?.merchant?.username || ''
       : selectedRows[0]?.driver?.username || '';
     
@@ -196,7 +212,7 @@ export default function DeliveryPage() {
     setLoading(true);
 
     // Determine the endpoint based on merchant filter
-    const endpoint = merchantFilter === '1' 
+    const endpoint = (isMerchant || merchantFilter === '1') 
       ? `${process.env.NEXT_PUBLIC_API_URL}/api/report/merchant`
       : `${process.env.NEXT_PUBLIC_API_URL}/api/report/driver`;
 
@@ -289,9 +305,14 @@ export default function DeliveryPage() {
     }
   };
 
-  // Fetch options when merchantFilter changes
+  // Fetch options when merchantFilter changes (skip for merchant – they see only their data)
   useEffect(() => {
     document.title = 'Тайлан нийлэх';
+
+    if (isMerchant) {
+      setSecondOptions([]);
+      return;
+    }
 
     const fetchOptions = async () => {
       if (!merchantFilter) {
@@ -321,10 +342,10 @@ export default function DeliveryPage() {
     };
 
     fetchOptions();
-    setSecondValue(null);
+    if (!isMerchant) setSecondValue(null);
     setSummary(null);
     setTableData([]);
-  }, [merchantFilter]);
+  }, [merchantFilter, isMerchant]);
 
   // Fetch driver summary function
   const fetchDriverSummary = async (
@@ -368,6 +389,8 @@ export default function DeliveryPage() {
     }
   };
 
+  const effectiveSecondValue = isMerchant ? merchantId : secondValue;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {/* Filters & Controls */}
@@ -385,49 +408,53 @@ export default function DeliveryPage() {
             color: 'white',
           }}
         />
-        <Select
-          value={merchantFilter}
-          onChange={(value) => {
-            setMerchantFilter(value);
-            setSummary(null);
-            setFetchError(null);
-            setTableData([]);
-          }}
-          placeholder="Сонгох"
-          style={{ width: 150 }}
-          allowClear
-        >
-          <Option value="1">Мерчант</Option>
-          <Option value="2">Жолооч</Option>
-        </Select>
+        {!isMerchant && (
+          <>
+            <Select
+              value={merchantFilter}
+              onChange={(value) => {
+                setMerchantFilter(value);
+                setSummary(null);
+                setFetchError(null);
+                setTableData([]);
+              }}
+              placeholder="Сонгох"
+              style={{ width: 150 }}
+              allowClear
+            >
+              <Option value="1">Мерчант</Option>
+              <Option value="2">Жолооч</Option>
+            </Select>
 
-        <Select
-          value={secondValue}
-          onChange={(value) => {
-            setSecondValue(value);
-            setSummary(null);
-            setFetchError(null);
-            setTableData([]);
-          }}
-          placeholder="Select Option"
-          style={{ width: 200 }}
-          loading={loadingOptions}
-          allowClear
-          disabled={!merchantFilter}
-          showSearch
-          optionFilterProp="label"
-          filterOption={(input, option) =>
-            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-          }
-          options={secondOptions.map((o) => ({ label: o.username, value: o.id }))}
-        />
+            <Select
+              value={secondValue}
+              onChange={(value) => {
+                setSecondValue(value);
+                setSummary(null);
+                setFetchError(null);
+                setTableData([]);
+              }}
+              placeholder="Хэрэглэгч сонгох"
+              style={{ width: 200 }}
+              loading={loadingOptions}
+              allowClear
+              disabled={!merchantFilter}
+              showSearch
+              optionFilterProp="label"
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={secondOptions.map((o) => ({ label: o.username, value: o.id }))}
+            />
+          </>
+        )}
         <RangePicker
           value={dateRange}
           onChange={(dates) => {
             setDateRange(dates ?? [null, null]);
-            if (dates && dates[0] && dates[1] && secondValue) {
+            if (dates && dates[0] && dates[1] && effectiveSecondValue) {
               fetchDriverSummary(
-                secondValue,
+                effectiveSecondValue,
                 dates[0].format('YYYY-MM-DD'),
                 dates[1].format('YYYY-MM-DD'),
                 pagination.current,
@@ -436,6 +463,7 @@ export default function DeliveryPage() {
             }
           }}
           format="YYYY-MM-DD"
+          placeholder={['Эхлэх огноо', 'Дуусах огноо']}
         />
       </div>
       
@@ -507,10 +535,10 @@ export default function DeliveryPage() {
             showSizeChanger: true,
             pageSizeOptions: ['100', '200', '500', '1000'],
             onChange: (page, pageSize) => {
-              setPagination({ ...pagination, current: page, pageSize });
-              if (dateRange[0] && dateRange[1] && secondValue) {
+              setPagination((prev) => ({ ...prev, current: page, pageSize }));
+              if (dateRange[0] && dateRange[1] && effectiveSecondValue) {
                 fetchDriverSummary(
-                  secondValue,
+                  effectiveSecondValue,
                   dateRange[0].format('YYYY-MM-DD'),
                   dateRange[1].format('YYYY-MM-DD'),
                   page,

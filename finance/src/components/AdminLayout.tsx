@@ -44,6 +44,17 @@ function getUserName(): string {
   }
 }
 
+function getUserRole(): number | null {
+  try {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) return null;
+    const user = JSON.parse(userStr);
+    return user.role ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /* ------------------------ PERMISSION HELPERS ------------------------ */
 
 function hasPermission(permission: string, userPermissions: string[]): boolean {
@@ -62,14 +73,15 @@ function filterMenuByPermission(items: MenuItemType[], userPermissions: string[]
     });
 }
 
-// Check if current route path is allowed for user
-function hasAccessToPath(pathname: string, menuItems: MenuItemType[], userPermissions: string[]): boolean {
+// Check if current route path is allowed for user (role 2 = merchant can access /admin/report)
+function hasAccessToPath(pathname: string, menuItems: MenuItemType[], userPermissions: string[], userRole: number | null): boolean {
+  if (userRole === 2 && pathname === '/admin/report') return true;
   for (const item of menuItems) {
     if (item.key === pathname) {
       if (!item.permission) return true;
       return userPermissions.includes(item.permission);
     }
-    if (item.children && hasAccessToPath(pathname, item.children, userPermissions)) {
+    if (item.children && hasAccessToPath(pathname, item.children, userPermissions, userRole)) {
       return true;
     }
   }
@@ -85,11 +97,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [isPending, startTransition] = useTransition();
   const [userPermissions, setUserPermissions] = useState<string[] | null>(null);
   const [userName, setUserName] = useState<string>('Хэрэглэгч');
+  const [userRole, setUserRole] = useState<number | null>(null);
 
   useEffect(() => {
     const permissions = getUserPermissions();
     setUserPermissions(permissions);
     setUserName(getUserName());
+    setUserRole(getUserRole());
   }, []);
 
   /* ------------------------ MENU CONFIG ------------------------ */
@@ -142,7 +156,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     },
   ];
 
-  const filteredMenuItems = userPermissions ? filterMenuByPermission(menuItems, userPermissions) : [];
+  let filteredMenuItems = userPermissions ? filterMenuByPermission(menuItems, userPermissions) : [];
+  if (userRole === 2) {
+    const hasReport = filteredMenuItems.some((m) => m.key === 'report' || m.key === '/admin/report');
+    if (!hasReport) {
+      filteredMenuItems = [
+        ...filteredMenuItems,
+        {
+          key: 'report',
+          icon: <FileTextOutlined />,
+          label: 'Тайлан',
+          permission: undefined,
+          children: [{ key: '/admin/report', icon: <FileTextOutlined />, label: 'Тайлан', permission: undefined }],
+        } as MenuItemType,
+      ];
+    } else {
+      filteredMenuItems = filteredMenuItems.map((m) => {
+        if (m.key === 'report' && m.children && !m.children.some((c) => c.key === '/admin/report')) {
+          return { ...m, children: [...m.children, { key: '/admin/report', icon: <FileTextOutlined />, label: 'Тайлан', permission: undefined } as MenuItemType] };
+        }
+        return m;
+      });
+    }
+  }
 
   /* ------------------------ ROUTE ACCESS CONTROL ------------------------ */
   useEffect(() => {
@@ -156,23 +192,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return;
     }
 
-    // Block users without permission
-    const allowed = hasAccessToPath(pathname, menuItems, userPermissions);
+    const allowed = hasAccessToPath(pathname, menuItems, userPermissions, userRole);
     if (pathname.startsWith('/admin') && !allowed) {
       message.error('Танд энэ хуудас руу хандах эрх байхгүй!');
       router.push('/admin');
     }
-  }, [pathname, userPermissions]);
+  }, [pathname, userPermissions, userRole]);
 
   /* ------------------------ LOGOUT HANDLER ------------------------ */
   const handleLogout = () => {
-    message.success('Амжилттай гарлаа');
     localStorage.removeItem('user');
     localStorage.removeItem('token');
-    router.push('/');
+    localStorage.removeItem('username');
+    message.success('Амжилттай гарлаа');
+    window.location.href = '/';
   };
 
-  const showConfirm = () => {
+  const showLogoutConfirm = () => {
     Modal.confirm({
       title: 'Та гарахдаа итгэлтэй байна уу?',
       okText: 'Тийм',
@@ -183,18 +219,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
   };
 
-  /* ------------------------ USER MENU ------------------------ */
-  const userMenu = (
-    <Menu>
-      <Menu.Item key="userinfo" icon={<UserOutlined />} disabled>
-        Таны нэр: {userName}
-      </Menu.Item>
-      <Menu.Divider />
-      <Menu.Item key="logout" icon={<LogoutOutlined />} onClick={showConfirm} danger>
-        Гарах
-      </Menu.Item>
-    </Menu>
-  );
+  const userMenuItems: MenuProps['items'] = [
+    { key: 'userinfo', icon: <UserOutlined />, disabled: true, label: `Таны нэр: ${userName}` },
+    { type: 'divider' },
+    { key: 'logout', icon: <LogoutOutlined />, danger: true, label: 'Гарах', onClick: showLogoutConfirm },
+  ];
 
   const handleMenuClick: MenuProps['onClick'] = (e) => {
     setLoading(true);
@@ -228,7 +257,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             alignItems: 'center',
           }}
         >
-          <Dropdown overlay={userMenu} trigger={['click']} placement="bottomRight" arrow>
+          <Dropdown menu={{ items: userMenuItems }} trigger={['click']} placement="bottomRight" arrow>
             <Avatar
               size="large"
               style={{ cursor: 'pointer', backgroundColor: '#1890ff' }}
