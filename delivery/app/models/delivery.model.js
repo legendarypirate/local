@@ -81,6 +81,11 @@ module.exports = (sequelize, Sequelize) => {
         allowNull: true,
         defaultValue: null,
       },
+      delivery_price: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 6000,
+      },
     });
   
     return Delivery;

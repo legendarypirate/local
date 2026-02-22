@@ -421,6 +421,54 @@ exports.importExcelDeliveries = async (req, res) => {
   }
 };
 
+/**
+ * Bulk update delivery_price for selected delivery IDs.
+ * Body: { delivery_ids: number[], delivery_price: number } (delivery_price can be string from JSON)
+ */
+exports.bulkUpdateDeliveryPrice = async (req, res) => {
+  const { delivery_ids, delivery_price } = req.body;
+
+  if (!Array.isArray(delivery_ids) || delivery_ids.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: "delivery_ids array is required.",
+    });
+  }
+  const priceNum = Number(delivery_price);
+  if (delivery_price == null || Number.isNaN(priceNum) || priceNum < 0) {
+    return res.status(400).json({
+      success: false,
+      message: "delivery_price must be a non-negative number.",
+    });
+  }
+
+  const ids = delivery_ids.map((id) => parseInt(id, 10)).filter((id) => !Number.isNaN(id));
+  if (ids.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: "No valid delivery IDs.",
+    });
+  }
+
+  try {
+    const [num] = await Delivery.update(
+      { delivery_price: priceNum },
+      { where: { id: ids } }
+    );
+    res.json({
+      success: true,
+      message: `${num} delivery(ies) updated.`,
+      updated: num,
+    });
+  } catch (error) {
+    console.error("Error bulk updating delivery_price:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while updating delivery price.",
+    });
+  }
+};
+
   
 // Retrieve all Categories from the database.
 exports.findAll = async (req, res) => {
@@ -561,7 +609,14 @@ where.status = {
       order: [['id', 'DESC']],
     });
 
-    const formattedDeliveries = rows.map((delivery) => delivery.toJSON());
+    const formattedDeliveries = rows.map((delivery) => {
+      const j = delivery.toJSON();
+      const raw = delivery.dataValues || {};
+      const dp = delivery.get ? delivery.get('delivery_price') : raw.delivery_price;
+      const val = dp !== undefined && dp !== null ? Number(dp) : (raw.delivery_price != null ? Number(raw.delivery_price) : 6000);
+      j.delivery_price = val;
+      return j;
+    });
 
     res.status(200).json({
       success: true,
@@ -619,7 +674,7 @@ exports.update = async (req, res) => {
   const id = req.params.id;
 
   // Validate request (ensure at least one field is provided)
-  if (!req.body.phone && !req.body.address && !req.body.price && !req.body.comment) {
+  if (!req.body.phone && !req.body.address && !req.body.price && !req.body.comment && req.body.delivery_price === undefined) {
     return res.status(400).json({
       success: false,
       message: "Request body cannot be empty. At least one field is required.",
@@ -635,6 +690,7 @@ exports.update = async (req, res) => {
     if (req.body.address !== undefined) updateData.address = req.body.address;
     if (req.body.price !== undefined) updateData.price = req.body.price;
     if (req.body.comment !== undefined) updateData.comment = req.body.comment;
+    if (req.body.delivery_price !== undefined) updateData.delivery_price = req.body.delivery_price;
 
     // Update the delivery entry in the database
     const [num] = await Delivery.update(updateData, { 

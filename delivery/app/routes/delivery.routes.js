@@ -20,6 +20,7 @@ module.exports = app => {
 
 
   router.post("/delete-multiple", delivery.deleteMultiple);
+  router.put("/bulk-delivery-price", delivery.bulkUpdateDeliveryPrice);
 
     // Retrieve all published Tutorials
     router.get("/published", delivery.findAllPublished);

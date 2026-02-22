@@ -69,6 +69,7 @@ interface Delivery {
   items?: Item[];
   is_paid: boolean;
   is_rural: boolean;
+  delivery_price?: number;
 }
 
 const products = [
@@ -157,6 +158,9 @@ export default function DeliveryPage() {
   const [formKhoroos, setFormKhoroos] = useState<{ id: number; name: string }[]>([]);
   const [formKhoroosLoading, setFormKhoroosLoading] = useState(false);
   const [selectedKhorooId, setSelectedKhorooId] = useState<number | null>(null);
+  const [isDeliveryPriceModal, setIsDeliveryPriceModal] = useState(false);
+  const [deliveryPriceInput, setDeliveryPriceInput] = useState<number>(6000);
+  const [deliveryPriceSubmitting, setDeliveryPriceSubmitting] = useState(false);
   const { modal, message: msg } = App.useApp();
 
   const handleEditClick = async (record: Delivery) => {
@@ -301,6 +305,13 @@ export default function DeliveryPage() {
       ),
     },
     { title: 'Үнэ', dataIndex: 'price' },
+    {
+      title: 'Хүргэлтийн үнэ',
+      dataIndex: 'delivery_price',
+      key: 'delivery_price',
+      width: 120,
+      render: (val: number | undefined) => (val != null ? `${Number(val).toLocaleString()} ₮` : '6000 ₮'),
+    },
     { title: 'Тайлбар', dataIndex: 'comment' },
     {
       title: 'Ж/тайлбар',
@@ -2102,6 +2113,16 @@ export default function DeliveryPage() {
               Төлөв солих
             </Button>
             <Button
+              type="default"
+              onClick={() => {
+                setDeliveryPriceInput(6000);
+                setIsDeliveryPriceModal(true);
+              }}
+              disabled={selectedRowKeys.length === 0}
+            >
+              Хүргэлтийн үнэ солих
+            </Button>
+            <Button
               type="primary"
               disabled={selectedRowKeys.length === 0}
               onClick={async () => {
@@ -2342,6 +2363,53 @@ export default function DeliveryPage() {
             </Option>
           ))}
         </Select>
+      </Modal>
+
+      <Modal
+        title="Хүргэлтийн үнэ солих"
+        open={isDeliveryPriceModal}
+        onCancel={() => setIsDeliveryPriceModal(false)}
+        onOk={async () => {
+          if (deliveryPriceInput < 0) {
+            msg.warning('Үнэ сөрөг байж болохгүй');
+            return;
+          }
+          setDeliveryPriceSubmitting(true);
+          try {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/delivery/bulk-delivery-price`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                delivery_ids: selectedRowKeys.map((k) => Number(k)),
+                delivery_price: Number(deliveryPriceInput),
+              }),
+            });
+            const result = await res.json();
+            if (result.success) {
+              msg.success(`${result.updated ?? selectedRowKeys.length} хүргэлтийн үнэ шинэчлэгдлээ`);
+              setIsDeliveryPriceModal(false);
+              setRefreshKey((prev) => prev + 1);
+            } else {
+              msg.error(result.message || 'Алдаа гарлаа');
+            }
+          } catch (e) {
+            msg.error('Алдаа гарлаа');
+          } finally {
+            setDeliveryPriceSubmitting(false);
+          }
+        }}
+        okText="Хадгалах"
+        cancelText="Болих"
+        confirmLoading={deliveryPriceSubmitting}
+      >
+        <div style={{ marginBottom: 8 }}>Сонгосон хүргэлт бүрт хэрэглэх үнэ (₮):</div>
+        <InputNumber
+          min={0}
+          value={deliveryPriceInput}
+          onChange={(v) => setDeliveryPriceInput(v ?? 6000)}
+          style={{ width: '100%' }}
+          addonAfter="₮"
+        />
       </Modal>
 
       <Modal

@@ -38,7 +38,9 @@ exports.getTotalPriceByDriverAndDate = async (req, res) => {
 
     const totalPrice = total_price != null ? parseFloat(total_price) : deliveries.reduce((sum, d) => sum + parseFloat(d.price), 0);
     const deliveryCount = number_delivery != null ? number_delivery : deliveries.length;
-    const driverFee = for_driver != null ? parseFloat(for_driver) : 4000 * deliveryCount;
+    // Driver fee: sum of (delivery_price - 2000) per delivery
+    const defaultDriverFee = deliveries.reduce((sum, d) => sum + (Number(d.delivery_price) || 6000) - 2000, 0);
+    const driverFee = for_driver != null ? parseFloat(for_driver) : defaultDriverFee;
     const accountAmount = account != null ? parseFloat(account) : totalPrice - driverFee;
     const driverId = deliveries[0].driver_id;
 
@@ -122,10 +124,10 @@ exports.getTotalPriceByMerchantAndDate = async (req, res) => {
       throw new Error("Some delivery records were not found.");
     }
 
-    // 2. Calculate values
+    // 2. Calculate values: merchant fee = sum of delivery_price per delivery
     const totalPrice = deliveries.reduce((sum, d) => sum + parseFloat(d.price), 0);
     const deliveryCount = deliveries.length;
-    const driverFee = 4000 * deliveryCount;
+    const driverFee = deliveries.reduce((sum, d) => sum + (Number(d.delivery_price) || 6000), 0);
     const accountAmount = totalPrice - driverFee;
     const merchantId = deliveries[0].merchant_id;
 
@@ -217,7 +219,7 @@ exports.findDeliveriesByReportId = async (req, res) => {
           attributes: ['status', 'color'], // make sure status has these fields
         }
       ],
-      attributes: ['id', 'merchant_id', 'phone', 'address', 'driver_id', 'price', 'status', 'createdAt'],
+      attributes: ['id', 'merchant_id', 'phone', 'address', 'driver_id', 'price', 'status', 'createdAt', 'delivery_price'],
     });
 
     res.json({

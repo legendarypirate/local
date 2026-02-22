@@ -43,6 +43,7 @@ interface Delivery {
     color: string;
   };
   delivered_at?: string;
+  delivery_price?: number;
 }
 
 // Delivery Table Columns (base; merchant view excludes Мерчанд нэр and Жолооч нэр)
@@ -229,17 +230,25 @@ export default function DeliveryPage() {
     const totalPrice = selectedRows.reduce((sum, row) => {
       return row.status === 3 ? sum + Number(row.price) : sum;
     }, 0);
-    
+
     const numberDelivery = selectedRows.length;
     const isMerchantFee = merchantFilter === '1';
-    const feePerDelivery = isMerchantFee ? 6000 : 4000;
-    const totalFee = numberDelivery * feePerDelivery;
+    // Merchant fee = sum(delivery_price); driver fee = sum(delivery_price - 2000)
+    const getDeliveryPrice = (row: Delivery) => {
+      const v = row.delivery_price;
+      if (v == null) return 6000;
+      const n = Number(v);
+      return Number.isNaN(n) ? 6000 : n;
+    };
+    const totalFee = isMerchantFee
+      ? selectedRows.reduce((sum, row) => sum + getDeliveryPrice(row), 0)
+      : selectedRows.reduce((sum, row) => sum + (getDeliveryPrice(row) - 2000), 0);
     const account = totalPrice - totalFee;
-    
+
     const driverName = isMerchantFee
       ? selectedRows[0]?.merchant?.username || ''
       : selectedRows[0]?.driver?.username || '';
-    
+
     setTableData([
       {
         key: 'summary',
