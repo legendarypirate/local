@@ -176,7 +176,7 @@ export default function DeliveryPage() {
       ...(!isMerchant
         ? [
             {
-              title: 'Нэмэлт хасалт',
+              title: 'Дутуу',
               key: 'extraDeduction',
               render: (_: unknown, record: SummaryType) => (
                 <InputNumber

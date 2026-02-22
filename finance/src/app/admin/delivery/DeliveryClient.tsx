@@ -364,7 +364,7 @@ export default function DeliveryPage() {
     }
   ];
 
-  // Merchant: Edit only for status 1, History for all; no Delete. Admin: full actions.
+  // Merchant (customer): Edit only for status 1; no History, no Delete. Admin: full actions.
   const merchantActionsColumn: TableColumnsType<Delivery>[0] = {
     title: 'Үйлдэл',
     key: 'actions',
@@ -383,14 +383,6 @@ export default function DeliveryPage() {
               Edit
             </Button>
           )}
-          <Button
-            type="link"
-            icon={<EyeOutlined />}
-            onClick={() => handleViewHistory(record.id)}
-            loading={historyLoading}
-          >
-            History
-          </Button>
         </Space>
       );
     },
@@ -1563,6 +1555,12 @@ export default function DeliveryPage() {
                 placeholder="Select a merchant"
                 value={selectedMerchantId}
                 onChange={(value) => setSelectedMerchantId(value)}
+                showSearch
+                optionFilterProp="children"
+                filterOption={(input, option) => {
+                  const label = String(option?.children ?? '');
+                  return label.toLowerCase().includes((input || '').toLowerCase());
+                }}
               >
                 {merchants.map((merchant) => (
                   <Select.Option key={merchant.id} value={merchant.id}>
@@ -2024,11 +2022,16 @@ export default function DeliveryPage() {
                     onChange={value => setProductPrice(value || 0)}
                     style={{ width: '100%' }}
                     placeholder="Нэгж үнэ"
-                    formatter={value => `${value} ₮`}
+                    formatter={value => {
+                      if (value == null) return '';
+                      const num = typeof value === 'number' ? value : Number(String(value).replace(/[^\d.-]/g, ''));
+                      if (Number.isNaN(num)) return String(value);
+                      return `${num.toLocaleString('en-US')} ₮`;
+                    }}
                     parser={value => {
-                      if (!value) return 0; // Return 0 when empty
-                      const numericString = value.replace(/₮\s?|(,*)/g, '');
-                      return Number(numericString);
+                      if (!value) return 0;
+                      const numericString = String(value).replace(/₮\s?|[\s,]/g, '');
+                      return Number(numericString) || 0;
                     }}
                   />
                 </Col>
