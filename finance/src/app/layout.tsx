@@ -1,6 +1,4 @@
-'use client';
-
-import { ConfigProvider } from 'antd';
+import { ConfigProvider, App } from 'antd';
 import React from 'react';
 import './globals.css'; // ✅ Import your reset
 
@@ -13,7 +11,9 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <ConfigProvider>
-          {children}
+          <App>
+            {children}
+          </App>
         </ConfigProvider>
       </body>
     </html>

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useTransition, useEffect } from 'react';
-import { Layout, Menu, message, Spin, Modal, Dropdown, Avatar, MenuProps } from 'antd';
+import { Layout, Menu, App, Spin, Modal, Dropdown, Avatar, MenuProps } from 'antd';
 import {
   DashboardOutlined, UserOutlined, SettingOutlined, TruckOutlined, ShoppingCartOutlined,
   AppstoreAddOutlined, BellOutlined, HomeOutlined, FileTextOutlined, KeyOutlined,
@@ -99,6 +99,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [userName, setUserName] = useState<string>('Хэрэглэгч');
   const [userRole, setUserRole] = useState<number | null>(null);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const { modal, message: msg } = App.useApp();
 
   useEffect(() => {
     const permissions = getUserPermissions();
@@ -198,14 +199,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     // Block unauthenticated users
     if (userPermissions.length === 0 && pathname.startsWith('/admin')) {
-      message.error('Та эхлээд нэвтэрнэ үү!');
+      msg.error('Та эхлээд нэвтэрнэ үү!');
       router.push('/login');
       return;
     }
 
     const allowed = hasAccessToPath(pathname, menuItems, userPermissions, userRole);
     if (pathname.startsWith('/admin') && !allowed) {
-      message.error('Танд энэ хуудас руу хандах эрх байхгүй!');
+      msg.error('Танд энэ хуудас руу хандах эрх байхгүй!');
       router.push('/admin');
     }
   }, [pathname, userPermissions, userRole]);
@@ -215,12 +216,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     localStorage.removeItem('user');
     localStorage.removeItem('token');
     localStorage.removeItem('username');
-    message.success('Амжилттай гарлаа');
+    msg.success('Амжилттай гарлаа');
     window.location.href = '/';
   };
 
   const showLogoutConfirm = () => {
-    Modal.confirm({
+    modal.confirm({
       title: 'Та гарахдаа итгэлтэй байна уу?',
       okText: 'Тийм',
       cancelText: 'Үгүй',
