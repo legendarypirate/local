@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Select, Tag, Switch, DatePicker, notification } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
@@ -132,7 +132,12 @@ type OptionType = {
 };
 
 export default function DeliveryPage() {
-  const currentUser = useMemo(() => getCurrentUser(), []);
+  const [currentUser, setCurrentUser] = useState<{ id: number; role: number; name?: string } | null>(null);
+
+  useEffect(() => {
+    setCurrentUser(getCurrentUser());
+  }, []);
+
   const isMerchant = currentUser?.role === 2;
   const merchantId = isMerchant ? String(currentUser!.id) : null;
 
@@ -140,10 +145,17 @@ export default function DeliveryPage() {
   const [pagination, setPagination] = useState({ current: 1, pageSize: 100, total: 0 });
   const [loadingDeliveries, setLoadingDeliveries] = useState(false);
 
-  // Summary & filters (merchant: pre-set to self)
-  const [merchantFilter, setMerchantFilter] = useState<string | null>(() => (currentUser?.role === 2 ? '1' : null));
+  // Summary & filters (merchant: pre-set to self once we know user)
+  const [merchantFilter, setMerchantFilter] = useState<string | null>(null);
   const [secondOptions, setSecondOptions] = useState<OptionType[]>([]);
-  const [secondValue, setSecondValue] = useState<string | null>(() => (currentUser?.role === 2 ? String(currentUser.id) : null));
+  const [secondValue, setSecondValue] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (currentUser?.role === 2) {
+      setMerchantFilter('1');
+      setSecondValue(String(currentUser.id));
+    }
+  }, [currentUser]);
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
   const [isReportMergeMode, setIsReportMergeMode] = useState(true);

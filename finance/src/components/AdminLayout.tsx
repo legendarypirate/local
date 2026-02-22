@@ -219,11 +219,36 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
   };
 
-  const userMenuItems: MenuProps['items'] = [
-    { key: 'userinfo', icon: <UserOutlined />, disabled: true, label: `Таны нэр: ${userName}` },
-    { type: 'divider' },
-    { key: 'logout', icon: <LogoutOutlined />, danger: true, label: 'Гарах', onClick: showLogoutConfirm },
-  ];
+  const userDropdownContent = (
+    <div style={{ minWidth: 200, padding: '4px 0' }}>
+      <div style={{ padding: '8px 12px', color: 'rgba(0,0,0,0.65)', cursor: 'default' }}>
+        Таны нэр: {userName}
+      </div>
+      <div style={{ borderTop: '1px solid #f0f0f0', margin: '4px 0' }} />
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          showLogoutConfirm();
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          width: '100%',
+          padding: '8px 12px',
+          border: 'none',
+          background: 'none',
+          cursor: 'pointer',
+          color: '#ff4d4f',
+          fontSize: 14,
+        }}
+      >
+        <LogoutOutlined /> Гарах
+      </button>
+    </div>
+  );
 
   const handleMenuClick: MenuProps['onClick'] = (e) => {
     setLoading(true);
@@ -257,7 +282,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             alignItems: 'center',
           }}
         >
-          <Dropdown menu={{ items: userMenuItems }} trigger={['click']} placement="bottomRight" arrow>
+          <Dropdown
+            dropdownRender={() => userDropdownContent}
+            trigger={['click']}
+            placement="bottomRight"
+            arrow
+          >
             <Avatar
               size="large"
               style={{ cursor: 'pointer', backgroundColor: '#1890ff' }}
