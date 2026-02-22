@@ -159,7 +159,7 @@ export default function DeliveryPage() {
   const [formKhoroosLoading, setFormKhoroosLoading] = useState(false);
   const [selectedKhorooId, setSelectedKhorooId] = useState<number | null>(null);
   const [isDeliveryPriceModal, setIsDeliveryPriceModal] = useState(false);
-  const [deliveryPriceInput, setDeliveryPriceInput] = useState<number>(6000);
+  const [deliveryPriceInput, setDeliveryPriceInput] = useState<number | null>(6000);
   const [deliveryPriceSubmitting, setDeliveryPriceSubmitting] = useState(false);
   const { modal, message: msg } = App.useApp();
 
@@ -305,13 +305,7 @@ export default function DeliveryPage() {
       ),
     },
     { title: 'Үнэ', dataIndex: 'price' },
-    {
-      title: 'Хүргэлтийн үнэ',
-      dataIndex: 'delivery_price',
-      key: 'delivery_price',
-      width: 120,
-      render: (val: number | undefined) => (val != null ? `${Number(val).toLocaleString()} ₮` : '6000 ₮'),
-    },
+   
     { title: 'Тайлбар', dataIndex: 'comment' },
     {
       title: 'Ж/тайлбар',
@@ -2117,6 +2111,7 @@ export default function DeliveryPage() {
               onClick={() => {
                 setDeliveryPriceInput(6000);
                 setIsDeliveryPriceModal(true);
+                setDeliveryPriceInput(6000);
               }}
               disabled={selectedRowKeys.length === 0}
             >
@@ -2370,6 +2365,10 @@ export default function DeliveryPage() {
         open={isDeliveryPriceModal}
         onCancel={() => setIsDeliveryPriceModal(false)}
         onOk={async () => {
+          if (deliveryPriceInput == null) {
+            msg.warning('Үнэ оруулна уу');
+            return;
+          }
           if (deliveryPriceInput < 0) {
             msg.warning('Үнэ сөрөг байж болохгүй');
             return;
@@ -2405,8 +2404,8 @@ export default function DeliveryPage() {
         <div style={{ marginBottom: 8 }}>Сонгосон хүргэлт бүрт хэрэглэх үнэ (₮):</div>
         <InputNumber
           min={0}
-          value={deliveryPriceInput}
-          onChange={(v) => setDeliveryPriceInput(v ?? 6000)}
+          value={deliveryPriceInput ?? undefined}
+          onChange={(v) => setDeliveryPriceInput(v ?? null)}
           style={{ width: '100%' }}
           addonAfter="₮"
         />
