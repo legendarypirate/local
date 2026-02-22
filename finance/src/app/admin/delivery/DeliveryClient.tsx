@@ -1579,6 +1579,46 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
                 return sukhbaatarDistrict.name;
               }
             }
+
+            // Check for БГД and map it to Баянгол (Баянгол дүүрэг)
+            if (/бгд/i.test(addr)) {
+              const bayangolDistrict = districts.find(d =>
+                normalizeDistrictName(d.name) === 'баянгол' || normalizeDistrictName(d.name) === 'баян-гол'
+              );
+              if (bayangolDistrict) {
+                return bayangolDistrict.name;
+              }
+            }
+
+            // СХД → Сонгинохайрхан
+            if (/схд/i.test(addr)) {
+              const songinokhairkhanDistrict = districts.find(d =>
+                normalizeDistrictName(d.name).includes('сонгино') && normalizeDistrictName(d.name).includes('хайрхан')
+              );
+              if (songinokhairkhanDistrict) {
+                return songinokhairkhanDistrict.name;
+              }
+            }
+
+            // ХУД → Хан-Уул
+            if (/худ/i.test(addr)) {
+              const khanuulDistrict = districts.find(d =>
+                normalizeDistrictName(d.name) === 'хан-уул' || normalizeDistrictName(d.name) === 'хануул'
+              );
+              if (khanuulDistrict) {
+                return khanuulDistrict.name;
+              }
+            }
+
+            // ЧД → Чингэлтэй
+            if (/чд/i.test(addr)) {
+              const chingelteiDistrict = districts.find(d =>
+                normalizeDistrictName(d.name) === 'чингэлтэй' || normalizeDistrictName(d.name) === 'чингэлтей'
+              );
+              if (chingelteiDistrict) {
+                return chingelteiDistrict.name;
+              }
+            }
             
             // Common district patterns in Mongolian addresses
             const districtPatterns = [
