@@ -35,6 +35,13 @@ export default function DriverPage() {
     fetchData();
   }, []);
 
+  const getCountBg = (val: number) => {
+    if (val > 20) return { backgroundColor: '#ffcccc' };
+    if (val > 10) return { backgroundColor: '#ffe0cc' };
+    if (val === 0) return { backgroundColor: '#d4edda' };
+    return undefined;
+  };
+
   const columns: TableColumnsType<DriverWithCount> = [
     {
       title: 'Жолоочийн нэр',
@@ -46,7 +53,11 @@ export default function DriverPage() {
       dataIndex: 'deliveryCountStatus2',
       key: 'deliveryCountStatus2',
       align: 'right',
-      render: (val: number) => val,
+      render: (val: number) => (
+        <span style={{ padding: '4px 8px', borderRadius: 4, ...getCountBg(val) }}>
+          {val}
+        </span>
+      ),
     },
   ];
 
