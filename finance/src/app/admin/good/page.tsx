@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Space, Drawer, Form, Input, Select, Modal, notification, message } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import type { TableColumnsType } from 'antd';
 import { EditOutlined, DeleteOutlined, CloseOutlined, ExclamationCircleFilled } from '@ant-design/icons';
 
 const { Option } = Select;
@@ -283,7 +283,7 @@ export default function UsersPage() {
       });
     return uniqueMerchants;
   }, [good]);
-  const columns: ColumnsType<Good> = [
+  const columns: TableColumnsType<Good> = [
     {
       title: 'Агуулах',
       dataIndex: ['ware', 'name'],
@@ -303,53 +303,59 @@ export default function UsersPage() {
       title: 'Үлдэгдэл',
       dataIndex: 'stock',
     },
-    {
-      title: 'Үйлдэл',
-      key: 'actions',
-      render: (_, record) => (
-        <Space>
-          <Button
-            type="link"
-            icon={<EditOutlined />}
-            onClick={() => handleEditGood(record)}
-          >
-            Засах
-          </Button>
-          <Button
-            type="link"
-            icon={<EditOutlined />}
-            onClick={() => {
-              setSelectedGood(record);
-              setModalVisible(true);
-            }}
-          >
-            Орлогодох
-          </Button>
-          <Button
-            type="link"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => handleDeleteGood(record)}
-          >
-            Устгах
-          </Button>
-        </Space>
-      ),
-    },
+    ...(!isMerchant
+      ? [
+          {
+            title: 'Үйлдэл',
+            key: 'actions' as const,
+            render: (_: unknown, record: Good) => (
+              <Space>
+                <Button
+                  type="link"
+                  icon={<EditOutlined />}
+                  onClick={() => handleEditGood(record)}
+                >
+                  Засах
+                </Button>
+                <Button
+                  type="link"
+                  icon={<EditOutlined />}
+                  onClick={() => {
+                    setSelectedGood(record);
+                    setModalVisible(true);
+                  }}
+                >
+                  Орлогодох
+                </Button>
+                <Button
+                  type="link"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => handleDeleteGood(record)}
+                >
+                  Устгах
+                </Button>
+              </Space>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
     <div style={{ padding: '24px' }}>
       <h1 style={{ marginBottom: 24 }}>Агуулахын бараа</h1>
-      <Space style={{ marginBottom: 16, width: '100%' }} wrap>
-        <Button
-          type="primary"
-          style={{ marginLeft: 'auto' }}
-          onClick={handleCreateGood}
-        >
-          + Бараа үүсгэх
-        </Button>
-      </Space>
+      {!isMerchant && (
+        <Space style={{ marginBottom: 16, width: '100%' }} wrap>
+          <Button
+            type="primary"
+            style={{ marginLeft: 'auto' }}
+            onClick={handleCreateGood}
+          >
+            + Бараа үүсгэх
+          </Button>
+        </Space>
+      )}
 
       <Table 
         columns={columns} 
@@ -363,8 +369,8 @@ export default function UsersPage() {
         title="Бараа үүсгэх"
         width={400}
         onClose={handleDrawerClose}
-        visible={drawerVisible}
-        bodyStyle={{ paddingBottom: 80 }}
+        open={drawerVisible}
+        styles={{ body: { paddingBottom: 80 } }}
       >
         <Form layout="vertical" form={form} onFinish={handleFormSubmit}>
           <Form.Item name="name" label="Барааны нэр" rules={[{ required: true }]}>
@@ -432,7 +438,7 @@ export default function UsersPage() {
 
       <Modal
         title={`Орлого эсвэл Зарлага`}
-        visible={modalVisible}
+        open={modalVisible}
         onCancel={() => setModalVisible(false)}
         footer={null}
         centered
@@ -466,7 +472,7 @@ export default function UsersPage() {
 
       <Modal
         title="Барааны нэр засах"
-        visible={editModalVisible}
+        open={editModalVisible}
         onCancel={() => {
           setEditModalVisible(false);
           editForm.resetFields();

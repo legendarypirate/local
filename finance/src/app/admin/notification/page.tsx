@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo,useRef,useEffect } from 'react';
 import { Table, Button, Space, Input, Drawer, Form ,Select} from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import type { TableColumnsType } from 'antd';
 
 import dayjs, { Dayjs } from 'dayjs';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
@@ -19,7 +19,7 @@ interface Notification {
 }
 
 
-const columns: ColumnsType<Notification> = [
+const columns: TableColumnsType<Notification> = [
   {
     title: 'Үүссэн огноо',
     dataIndex: 'createdAt',
@@ -179,11 +179,11 @@ export default function DeliveryPage() {
  <Drawer
         title="Мэдэгдэл илгээх"
         placement="right"
-        visible={isDrawerVisible}
+        open={isDrawerVisible}
         onClose={handleCloseDrawer}
         width="400px"  // Adjust the width as needed
         height="100%"  // Full height
-        bodyStyle={{ padding: '20px' }}
+        styles={{ body: { padding: '20px' } }}
       >
         <Form form={form} layout="vertical">
         <Form.Item

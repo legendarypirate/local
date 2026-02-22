@@ -120,6 +120,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       permission: 'good:view_good',
       children: [
         { key: '/admin/good', icon: <ShoppingOutlined />, label: 'Барааны жагсаалт', permission: 'good:view_good' },
+        { key: '/admin/good-request', icon: <FileTextOutlined />, label: 'Барааны хүсэлт', permission: 'good:view_good' },
       ],
     },
     {
@@ -130,6 +131,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       children: [
         { key: '/admin/report', icon: <FileTextOutlined />, label: 'Тайлан', permission: 'log:view_log' },
         { key: '/admin/summary', icon: <BarChartOutlined />, label: 'Тайлан жагсаалт', permission: 'reports:view_reports' },
+        { key: '/admin/driver-tootsoo', icon: <BarChartOutlined />, label: 'Жолоочийн тооцоо', permission: 'log:view_log' },
+
       ],
     },
     { key: '/admin/log', icon: <FileTextOutlined />, label: 'Үйлдлийн лог', permission: 'log:view_log' },
@@ -178,6 +181,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         return m;
       });
     }
+    // Customer (role 2): show only "Тайлан" (/admin/report), hide "Тайлан жагсаалт" (/admin/summary)
+    filteredMenuItems = filteredMenuItems.map((m) => {
+      if (m.key === 'report' && m.children) {
+        return { ...m, children: m.children.filter((c) => c.key !== '/admin/summary') };
+      }
+      return m;
+    });
   }
 
   /* ------------------------ ROUTE ACCESS CONTROL ------------------------ */

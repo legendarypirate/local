@@ -1,9 +1,10 @@
 const db = require("../models");
 const Delivery = db.deliveries;
 const Op = db.Sequelize.Op;
-const Summary = db.summaries; // Add this
-const Status = db.statuses; // Add this
-const User = db.users; // Add this
+const Summary = db.summaries;
+const Status = db.statuses;
+const User = db.users;
+const DriverTootsoo = db.driver_tootsoos;
 
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
@@ -14,7 +15,7 @@ dayjs.extend(timezone);
 const { sequelize } = require('../models'); // adjust path if needed
 
 exports.getTotalPriceByDriverAndDate = async (req, res) => {
-  const { delivery_ids } = req.body;
+  const { delivery_ids, start_date, end_date, extra_deduction, total_price, for_driver, account, number_delivery } = req.body;
 
   if (!Array.isArray(delivery_ids) || delivery_ids.length === 0) {
     return res.status(400).json({
@@ -23,16 +24,11 @@ exports.getTotalPriceByDriverAndDate = async (req, res) => {
     });
   }
 
-  const t = await sequelize.transaction(); // Start transaction
+  const t = await sequelize.transaction();
 
   try {
-    // 1. Fetch deliveries
     const deliveries = await Delivery.findAll({
-      where: {
-        id: {
-          [Op.in]: delivery_ids
-        }
-      },
+      where: { id: { [Op.in]: delivery_ids } },
       transaction: t,
     });
 
@@ -40,14 +36,12 @@ exports.getTotalPriceByDriverAndDate = async (req, res) => {
       throw new Error("Some delivery records were not found.");
     }
 
-    // 2. Calculate values
-    const totalPrice = deliveries.reduce((sum, d) => sum + parseFloat(d.price), 0);
-    const deliveryCount = deliveries.length;
-    const driverFee = 4000 * deliveryCount;
-    const accountAmount = totalPrice - driverFee;
+    const totalPrice = total_price != null ? parseFloat(total_price) : deliveries.reduce((sum, d) => sum + parseFloat(d.price), 0);
+    const deliveryCount = number_delivery != null ? number_delivery : deliveries.length;
+    const driverFee = for_driver != null ? parseFloat(for_driver) : 4000 * deliveryCount;
+    const accountAmount = account != null ? parseFloat(account) : totalPrice - driverFee;
     const driverId = deliveries[0].driver_id;
 
-    // 3. Insert into Summary table and get the summary ID
     const summary = await Summary.create({
       driver_id: driverId,
       total: totalPrice,
@@ -56,21 +50,27 @@ exports.getTotalPriceByDriverAndDate = async (req, res) => {
       account: accountAmount,
     }, { transaction: t });
 
-    // 4. Update deliveries: is_reported = true and report_id = summary.id
     await Delivery.update(
-      {
-        is_reported: true,
-        report_id: summary.id
-      },
-      {
-        where: {
-          id: delivery_ids,
-        },
-        transaction: t,
-      }
+      { is_reported: true, report_id: summary.id },
+      { where: { id: delivery_ids }, transaction: t }
     );
 
-    await t.commit(); // ✅ Commit if all successful
+    if (start_date && end_date) {
+      await DriverTootsoo.create({
+        driver_id: driverId,
+        start_date,
+        end_date,
+        total_price: totalPrice,
+        for_driver: driverFee,
+        extra_deduction: extra_deduction != null ? parseFloat(extra_deduction) : 0,
+        account: accountAmount,
+        number_delivery: deliveryCount,
+        delivery_ids: delivery_ids,
+        status: 1,
+      }, { transaction: t });
+    }
+
+    await t.commit();
 
     res.json({
       success: true,
@@ -80,12 +80,11 @@ exports.getTotalPriceByDriverAndDate = async (req, res) => {
         driver: driverFee,
         account: accountAmount,
         driver_id: driverId,
-        summary_id: summary.id
-      }
+        summary_id: summary.id,
+      },
     });
-
   } catch (error) {
-    await t.rollback(); // ❌ Rollback on any error
+    await t.rollback();
     console.error("Error in transaction:", error);
     res.status(500).json({
       success: false,

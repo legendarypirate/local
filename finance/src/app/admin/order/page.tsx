@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo,useEffect } from 'react';
 import { Table, Button, Space, Input, DatePicker, Drawer, Form ,Select,Tag,Modal} from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import type { TableColumnsType } from 'antd';
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
@@ -144,7 +144,7 @@ export default function DeliveryPage() {
   ]);
   
   const hasPermission = (perm: string) => permissions.includes(perm);
-  const columns: ColumnsType<Order> = [
+  const columns: TableColumnsType<Order> = [
     {
       title: 'Үүссэн огноо',
       dataIndex: 'createdAt',
@@ -422,11 +422,11 @@ export default function DeliveryPage() {
  <Drawer
         title="Захиалга үүсгэх"
         placement="right"
-        visible={isDrawerVisible}
+        open={isDrawerVisible}
         onClose={handleCloseDrawer}
         width="400px"  // Adjust the width as needed
         height="100%"  // Full height
-        bodyStyle={{ padding: '20px' }}
+        styles={{ body: { padding: '20px' } }}
       >
         <Form form={form} layout="vertical">
         <Form.Item
@@ -511,7 +511,7 @@ export default function DeliveryPage() {
       )}
       <Modal
         title="Select Driver"
-        visible={isModalVisible}
+        open={isModalVisible}
         onCancel={() => setIsModalVisible(false)}
         onOk={handleSaveAllocation}
         okText="Save"

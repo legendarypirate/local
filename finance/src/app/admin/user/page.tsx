@@ -12,7 +12,7 @@ import {
   Modal,
   message,
 } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import type { TableColumnsType } from 'antd';
 import {
   EditOutlined,
   DeleteOutlined,
@@ -206,7 +206,7 @@ export default function UsersPage() {
     setPagination((prev) => ({ ...prev, current: 1 }));
   };
 
-  const columns: ColumnsType<User> = [
+  const columns: TableColumnsType<User> = [
     {
       title: 'Username',
       dataIndex: 'username',
@@ -341,7 +341,7 @@ export default function UsersPage() {
         width={400}
         onClose={handleDrawerClose}
         open={drawerVisible}
-        bodyStyle={{ paddingBottom: 80 }}
+        styles={{ body: { paddingBottom: 80 } }}
       >
         <Form layout="vertical" form={form} onFinish={handleFormSubmit}>
           <Form.Item name="username" label="Username" rules={[{ required: true }]}>

@@ -7,41 +7,39 @@ const Good = db.goods;
 
 exports.createRequest = async (req, res) => {
     const { type, amount, ware_id, merchant_id, good_id, name, stock } = req.body;
-  
-    // Validate type
-    if (![1, 2, 3].includes(type)) {
+    const amountNum = amount != null ? Number(amount) : (stock != null ? Number(stock) : null);
+
+    if (![1, 2, 3].includes(Number(type))) {
       return res.status(400).json({ success: false, message: "Invalid 'type'. Must be 1, 2, or 3." });
     }
-  
-    if (typeof amount !== 'number' || amount <= 0) {
-      return res.status(400).json({ success: false, message: "Invalid 'amount'. Must be positive." });
+
+    if (amountNum == null || isNaN(amountNum) || amountNum <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid 'amount'. Must be a positive number." });
     }
-  
+
     if (!ware_id || !merchant_id) {
       return res.status(400).json({ success: false, message: "'ware_id' and 'merchant_id' are required." });
     }
-  
-    // For type 1 (create), 'name' and 'stock' may be needed
-    if (type === 1 && (!name || typeof amount !== 'number')) {
-      return res.status(400).json({ success: false, message: "'name' and 'stock' required for type 1." });
+
+    if (Number(type) === 1 && !name) {
+      return res.status(400).json({ success: false, message: "'name' is required for type 1 (create good)." });
     }
-  
-    // For type 2 and 3, good_id is required
-    if ((type === 2 || type === 3) && !good_id) {
+
+    if ((Number(type) === 2 || Number(type) === 3) && (good_id == null || good_id === '')) {
       return res.status(400).json({ success: false, message: "'good_id' is required for types 2 and 3." });
     }
-  
+
     try {
       const newRequest = await Request.create({
-        type:type,
-        stock: amount,
+        type: Number(type),
+        stock: Math.floor(amountNum),
         status: 1,
-        ware_id,
-        good_id:good_id ,
-        merchant_id,
-        name, // for create type
+        ware_id: Number(ware_id),
+        good_id: good_id != null && good_id !== '' ? Number(good_id) : null,
+        merchant_id: Number(merchant_id),
+        name: name || null,
       });
-  
+
       return res.status(201).json({
         success: true,
         message: "Request created successfully.",
@@ -51,8 +49,7 @@ exports.createRequest = async (req, res) => {
       console.error('Error creating request:', error);
       return res.status(500).json({
         success: false,
-        message: "Error creating request.",
-        error: error.message,
+        message: error.message || "Error creating request.",
       });
     }
   };
@@ -87,54 +84,55 @@ exports.create = (req, res) => {
     });
   };
 
-  // Approve request
+  // Approve request (optional body.stock = approved amount to use; defaults to request.stock)
   exports.approve = async (req, res) => {
     const requestId = req.params.id;
-  
+    const bodyStock = req.body && req.body.stock != null ? Number(req.body.stock) : null;
+    const approvedAmount = bodyStock != null && !isNaN(bodyStock) && bodyStock > 0
+      ? Math.floor(bodyStock)
+      : null;
+
     try {
       const request = await Request.findByPk(requestId);
-  
+
       if (!request) {
         return res.status(404).json({ success: false, message: 'Request not found.' });
       }
-  
-      // Update status to approved
-      await request.update({ status: 2 });
-  
-      // Process based on type
+
+      if (request.status !== 1) {
+        return res.status(400).json({ success: false, message: 'Only pending requests can be approved.' });
+      }
+
+      const amountToUse = approvedAmount != null ? approvedAmount : request.stock;
+      const updatePayload = { status: 2 };
+      if (approvedAmount != null) updatePayload.approved_stock = approvedAmount;
+
       if (request.type === 1) {
-        // Type 1: Create new good
         await Good.create({
           name: request.name,
-          stock: request.stock,
+          stock: amountToUse,
           merchant_id: request.merchant_id,
           ware_id: request.ware_id,
         });
-  
       } else if (request.type === 2) {
-        // Type 2: Add stock to existing good
         const good = await Good.findByPk(request.good_id);
         if (!good) {
           return res.status(404).json({ success: false, message: 'Good not found.' });
         }
-        await good.update({ stock: good.stock + request.stock });
-  
+        await good.update({ stock: good.stock + amountToUse });
       } else if (request.type === 3) {
-        // Type 3: Reduce stock from existing good
         const good = await Good.findByPk(request.good_id);
         if (!good) {
           return res.status(404).json({ success: false, message: 'Good not found.' });
         }
-  
-        if (good.stock < request.stock) {
+        if (good.stock < amountToUse) {
           return res.status(400).json({ success: false, message: 'Not enough stock to reduce.' });
         }
-  
-        await good.update({ stock: good.stock - request.stock });
+        await good.update({ stock: good.stock - amountToUse });
       }
-  
-      return res.json({ success: true, message: 'Request approved and processed successfully.' });
-  
+
+      await request.update(updatePayload);
+      return res.json({ success: true, message: 'Request approved and processed successfully.', data: request });
     } catch (err) {
       console.error('Approve error:', err);
       return res.status(500).json({ success: false, message: err.message });
@@ -158,44 +156,33 @@ exports.create = (req, res) => {
   };
   
 
-// Find all
+// Find all (order by newest first; optional merchant_id filter)
 exports.findAll = async (req, res) => {
-    const merchant_id = req.query.merchant_id;
-  
-    // Build condition only if merchant_id exists
-    const condition = merchant_id ? { merchant_id: merchant_id } : undefined;
-  
+    const merchantIdParam = req.query.merchant_id;
+    const merchantId = merchantIdParam != null ? parseInt(merchantIdParam, 10) : null;
+    const condition = merchantId != null && !isNaN(merchantId) ? { merchant_id: merchantId } : undefined;
+
     try {
       const data = await Request.findAll({
         where: condition,
+        order: [['createdAt', 'DESC']],
         include: [
-          {
-            model: User,
-            as: 'merchant',
-            attributes: ['id', 'username'],
-          },
-          {
-            model: Ware,
-            as: 'ware',
-            attributes: ['id', 'name'],
-          },
+          { model: User, as: 'merchant', attributes: ['id', 'username'] },
+          { model: Ware, as: 'ware', attributes: ['id', 'name'] },
           {
             model: Good,
             as: 'good',
             attributes: ['id', 'name'],
-            required: false, // allows type 1 to not fail when good_id is null
+            required: false,
           },
         ],
       });
-  
-      res.send({
-        success: true,
-        data,
-      });
+      res.json({ success: true, data });
     } catch (err) {
-      res.status(500).send({
+      console.error('Error listing requests:', err);
+      res.status(500).json({
         success: false,
-        message: err.message || "Some error occurred while retrieving requests.",
+        message: err.message || "Error retrieving requests.",
       });
     }
   };

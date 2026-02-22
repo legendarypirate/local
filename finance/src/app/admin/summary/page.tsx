@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Table, Button, Space, Select, Tag, Switch, DatePicker,Drawer } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import type { TableColumnsType } from 'antd';
 import {EyeOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
@@ -87,6 +87,8 @@ export default function DeliveryPage() {
   const [deliveryList, setDeliveryList] = useState<DeliveryType[]>([]);
   const [selectedReportId, setSelectedReportId] = useState<number | null>(null);
   const [drawerLoading, setDrawerLoading] = useState(false);
+  const [merchantDeliveries, setMerchantDeliveries] = useState<DeliveryType[]>([]);
+  const [merchantTotal, setMerchantTotal] = useState(0);
   
   const storedUser = useMemo(() => getStoredUser(), []);
   const isMerchant = storedUser?.role === 2;
@@ -111,7 +113,7 @@ export default function DeliveryPage() {
     }
   }, [storedUser]);
 
-  const deliveryColumns: ColumnsType<DeliveryType> = [
+  const deliveryColumns: TableColumnsType<DeliveryType> = [
     {
       title: 'Мерчант',
       dataIndex: ['merchant', 'username'],
@@ -198,7 +200,37 @@ export default function DeliveryPage() {
     }
   };
 
-  // Fetch driver summary function
+  // Fetch deliveries for merchant (same API as report page: findAllWithDate)
+  const fetchMerchantDeliveries = async (
+    merchantId: string,
+    startDate: string,
+    endDate: string,
+    page: number,
+    pageSize: number
+  ) => {
+    setFetchingSummary(true);
+    setFetchError(null);
+    try {
+      const url = `${process.env.NEXT_PUBLIC_API_URL}/api/delivery/findAllWithDate?page=${page}&limit=${pageSize}&startDate=${startDate}&endDate=${endDate}&merchantId=${merchantId}`;
+      const res = await fetch(url);
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        throw new Error(result.message || 'Failed to fetch deliveries.');
+      }
+      const list = Array.isArray(result.data) ? result.data : [];
+      setMerchantDeliveries(list);
+      setMerchantTotal(result.total ?? result.count ?? list.length);
+      setPagination((prev) => ({ ...prev, current: page, pageSize, total: result.total ?? result.count ?? list.length }));
+    } catch (error: any) {
+      setFetchError(`Error: ${error.message || error}`);
+      setMerchantDeliveries([]);
+      setMerchantTotal(0);
+    } finally {
+      setFetchingSummary(false);
+    }
+  };
+
+  // Fetch driver summary function (admin: list of merged reports from /api/summary)
   const fetchSummary = async (userId: string, startDate: string, endDate: string) => {
     setFetchingSummary(true);
     setFetchError(null);
@@ -227,7 +259,7 @@ export default function DeliveryPage() {
     }
   };
 
-  const summaryColumns: ColumnsType<SummaryType> = [
+  const summaryColumns: TableColumnsType<SummaryType> = [
     {
       title: 'Үүссэн огноо',
       dataIndex: 'createdAt',
@@ -337,11 +369,21 @@ export default function DeliveryPage() {
             if (dates && dates[0] && dates[1]) {
               const targetUserId = isMerchant ? merchantUserId : secondValue;
               if (targetUserId) {
-                fetchSummary(
-                  targetUserId,
-                  dates[0].format('YYYY-MM-DD'),
-                  dates[1].format('YYYY-MM-DD')
-                );
+                if (isMerchant) {
+                  fetchMerchantDeliveries(
+                    targetUserId,
+                    dates[0].format('YYYY-MM-DD'),
+                    dates[1].format('YYYY-MM-DD'),
+                    pagination.current,
+                    pagination.pageSize
+                  );
+                } else {
+                  fetchSummary(
+                    targetUserId,
+                    dates[0].format('YYYY-MM-DD'),
+                    dates[1].format('YYYY-MM-DD')
+                  );
+                }
               }
             }
           }}
@@ -349,18 +391,38 @@ export default function DeliveryPage() {
         />
       </div>
 
-      {/* Delivery Data Table */}
+      {/* Delivery Data Table (merchant: deliveries from findAllWithDate; admin: summary list from /api/summary) */}
       <div style={{ flexGrow: 1, overflowY: 'auto', padding: '0 24px 80px 24px' }}>
         <Table
-          columns={summaryColumns}
-          dataSource={tableData}
-          loading={loadingDeliveries}
-          pagination={{
-            current: pagination.current,
-            pageSize: pagination.pageSize,
-            total: pagination.total,
-            onChange: (page, pageSize) => setPagination({ current: page, pageSize, total: pagination.total }),
-          }}
+          columns={isMerchant ? deliveryColumns : summaryColumns}
+          dataSource={isMerchant ? merchantDeliveries : tableData}
+          loading={loadingDeliveries || fetchingSummary}
+          pagination={
+            isMerchant
+              ? {
+                  current: pagination.current,
+                  pageSize: pagination.pageSize,
+                  total: merchantTotal,
+                  onChange: (page, pageSize) => {
+                    setPagination((prev) => ({ ...prev, current: page, pageSize: pageSize || prev.pageSize }));
+                    if (dateRange[0] && dateRange[1] && merchantUserId) {
+                      fetchMerchantDeliveries(
+                        merchantUserId,
+                        dateRange[0].format('YYYY-MM-DD'),
+                        dateRange[1].format('YYYY-MM-DD'),
+                        page,
+                        pageSize || pagination.pageSize
+                      );
+                    }
+                  },
+                }
+              : {
+                  current: pagination.current,
+                  pageSize: pagination.pageSize,
+                  total: pagination.total,
+                  onChange: (page, pageSize) => setPagination({ current: page, pageSize, total: pagination.total }),
+                }
+          }
           rowKey="id"
           scroll={{ x: 1200 }}
         />

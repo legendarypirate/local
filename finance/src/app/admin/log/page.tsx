@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import {  Button, Space, Drawer, Form, Select } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import type { TableColumnsType } from 'antd';
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
 
 
@@ -82,7 +82,7 @@ export default function UsersPage() {
     }
   };
   
-  const columns: ColumnsType<User> = [
+  const columns: TableColumnsType<User> = [
     {
       title: 'Username',
       dataIndex: 'username',

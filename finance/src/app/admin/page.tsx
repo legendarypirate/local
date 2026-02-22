@@ -78,10 +78,12 @@ const Dashboard = () => {
                     borderRadius: 12,
                     boxShadow: '0 2px 8px rgba(0,0,0,.06)',
                   }}
-                  headStyle={{
-                    background: '#f5f5f5',
-                    fontWeight: 600,
-                    fontSize: 16,
+                  styles={{
+                    header: {
+                      background: '#f5f5f5',
+                      fontWeight: 600,
+                      fontSize: 16,
+                    },
                   }}
                 >
                   <div style={{ fontSize: 36, fontWeight: 'bold', color: borderColor }}>

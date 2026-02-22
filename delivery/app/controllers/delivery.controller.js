@@ -193,6 +193,45 @@ exports.create = async (req, res) => {
   const t = await db.sequelize.transaction();
 
   try {
+    // Validate stock availability before creating delivery
+    if (req.body.items && Array.isArray(req.body.items) && req.body.items.length > 0) {
+      const quantityByGood = {};
+      for (const item of req.body.items) {
+        const gid = item.good_id;
+        const qty = Math.max(0, parseInt(item.quantity, 10) || 1);
+        quantityByGood[gid] = (quantityByGood[gid] || 0) + qty;
+      }
+      const goodIds = Object.keys(quantityByGood).map(Number).filter((id) => !Number.isNaN(id));
+      if (goodIds.length > 0) {
+        const goods = await Good.findAll({
+          where: { id: goodIds },
+          attributes: ['id', 'name', 'stock'],
+          transaction: t,
+          lock: true,
+        });
+        const stockByGood = {};
+        for (const g of goods) stockByGood[g.id] = { name: g.name, stock: Math.max(0, parseInt(g.stock, 10) || 0) };
+        for (const goodId of goodIds) {
+          const requested = quantityByGood[goodId] || 0;
+          const info = stockByGood[goodId];
+          if (!info) {
+            await t.rollback();
+            return res.status(400).json({
+              success: false,
+              message: `Good id ${goodId} not found.`,
+            });
+          }
+          if (requested > info.stock) {
+            await t.rollback();
+            return res.status(400).json({
+              success: false,
+              message: `Агуулахын үлдэгдэл хүрэлцэхгүй байна. Бараа: "${info.name}", Боломжтой: ${info.stock} ширхэг, Шаардлагатай: ${requested} ширхэг`,
+            });
+          }
+        }
+      }
+    }
+
     const delivery_id = await generateDeliveryId();
 
     const newDel = {

@@ -316,8 +316,9 @@ exports.completeDelivery = async (req, res) => {
     // 🔹 Update delivery
     await delivery.update(updateData, { transaction: t });
 
-    // ✅ If declined (status 5), restore stock
-    if (parseInt(status, 10) === 5) {
+    // ✅ If declined (status 5) or status 7, restore stock
+    const statusNum = parseInt(status, 10);
+    if (statusNum === 5 || statusNum === 7) {
       const items = await DeliveryItem.findAll({
         where: { delivery_id: id },
         transaction: t,

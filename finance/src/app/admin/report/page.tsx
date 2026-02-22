@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Select, Tag, Switch, DatePicker, notification } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import { Table, Button, Space, Select, Tag, Switch, DatePicker, notification, InputNumber } from 'antd';
+import type { TableColumnsType } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
@@ -46,7 +46,7 @@ interface Delivery {
 }
 
 // Delivery Table Columns
-const deliveryColumns: ColumnsType<Delivery> = [
+const deliveryColumns: TableColumnsType<Delivery> = [
   {
     title: 'Үүссэн огноо',
     dataIndex: 'createdAt',
@@ -92,39 +92,8 @@ type SummaryType = {
   forDriver: number;
   account: number;
   numberDelivery?: number;
+  extraDeduction?: number; // editable: deducted from нийт үнэ for Зөрүү
 };
-
-const summaryColumns: ColumnsType<SummaryType> = [
-  {
-    title: 'нэр',
-    dataIndex: 'driverName',
-    key: 'driverName',
-  },
-  {
-    title: 'Нийт хүргэлт',
-    dataIndex: 'numberDelivery',
-    key: 'numberDelivery',
-    render: (value?: number) => value?.toLocaleString() ?? '—',
-  },
-  {
-    title: 'Нийт үнэ',
-    dataIndex: 'totalPrice',
-    key: 'totalPrice',
-    render: (value: number) => value.toLocaleString() + ' ₮',
-  },
-  {
-    title: 'Жолоочид олгох',
-    dataIndex: 'forDriver',
-    key: 'forDriver',
-    render: (value: number) => value.toLocaleString() + ' ₮',
-  },
-  {
-    title: 'Зөрүү',
-    dataIndex: 'account',
-    key: 'account',
-    render: (value: number) => value.toLocaleString() + ' ₮',
-  },
-];
 
 type OptionType = {
   id: string;
@@ -167,6 +136,71 @@ export default function DeliveryPage() {
   const [deliveryList, setDeliveryList] = useState<Delivery[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
+  const summaryColumns: TableColumnsType<SummaryType> = [
+    { title: 'нэр', dataIndex: 'driverName', key: 'driverName' },
+    {
+      title: 'Нийт хүргэлт',
+      dataIndex: 'numberDelivery',
+      key: 'numberDelivery',
+      render: (value?: number) => value?.toLocaleString() ?? '—',
+    },
+    {
+      title: 'Нийт үнэ',
+      dataIndex: 'totalPrice',
+      key: 'totalPrice',
+      render: (value: number, record: SummaryType) => {
+        const deduction = record.extraDeduction ?? 0;
+        const afterDeduction = value - deduction;
+        if (deduction > 0) {
+          return (
+            <span>
+              <span style={{ textDecoration: 'line-through', color: '#999', marginRight: 4 }}>
+                {value.toLocaleString()} ₮
+              </span>
+              <span>{afterDeduction.toLocaleString()} ₮</span>
+            </span>
+          );
+        }
+        return <span>{value.toLocaleString()} ₮</span>;
+      },
+    },
+    {
+      title: 'Жолоочид олгох',
+      dataIndex: 'forDriver',
+      key: 'forDriver',
+      render: (value: number) => value.toLocaleString() + ' ₮',
+    },
+    {
+      title: 'Нэмэлт хасалт',
+      key: 'extraDeduction',
+      render: (_: unknown, record: SummaryType) => (
+        <InputNumber
+          min={0}
+          max={record.totalPrice ?? 0}
+          value={record.extraDeduction ?? 0}
+          onChange={(val) => {
+            const v = typeof val === 'number' ? val : 0;
+            setTableData((prev) =>
+              prev.map((row) =>
+                row.key === record.key ? { ...row, extraDeduction: v } : row
+              )
+            );
+          }}
+          style={{ width: 120 }}
+          addonAfter="₮"
+        />
+      ),
+    },
+    {
+      title: 'Зөрүү',
+      key: 'account',
+      render: (_: unknown, record: SummaryType) => {
+        const diff = record.totalPrice - record.forDriver;
+        return <span>{diff.toLocaleString()} ₮</span>;
+      },
+    },
+  ];
+
  const rowSelection = {
   selectedRowKeys,
   onChange: (selectedKeys: React.Key[], selectedRows: Delivery[]) => {
@@ -193,8 +227,9 @@ export default function DeliveryPage() {
         driverName,
         totalPrice,
         forDriver: totalFee,
-        account,
+        account: totalPrice - totalFee,
         numberDelivery,
+        extraDeduction: 0,
       },
     ]);
   },
@@ -205,7 +240,6 @@ export default function DeliveryPage() {
       message: null,
       description: <div style={{ color: 'white' }}>{messageText}</div>,
       duration: 4,
-      showProgress: true,
       style: {
         backgroundColor: type === 'success' ? '#52c41a' : '#ff4d4f',
         borderRadius: '4px',
@@ -219,21 +253,39 @@ export default function DeliveryPage() {
     alert("Please select at least one delivery to report.");
     return;
   }
+  if (!dateRange[0] || !dateRange[1]) {
+    openNotification('error', 'Эхлэх болон дуусах огноо сонгоно уу.');
+    return;
+  }
 
   try {
     setLoading(true);
 
-    // Determine the endpoint based on merchant filter
-    const endpoint = (isMerchant || merchantFilter === '1') 
+    const endpoint = (isMerchant || merchantFilter === '1')
       ? `${process.env.NEXT_PUBLIC_API_URL}/api/report/merchant`
       : `${process.env.NEXT_PUBLIC_API_URL}/api/report/driver`;
+
+    const summaryRow = tableData[0];
+    const extraDeduction = summaryRow?.extraDeduction ?? 0;
+
+    const body: Record<string, unknown> = {
+      delivery_ids: selectedRowKeys,
+      start_date: dateRange[0].format('YYYY-MM-DD'),
+      end_date: dateRange[1].format('YYYY-MM-DD'),
+      extra_deduction: extraDeduction,
+      total_price: summaryRow?.totalPrice,
+      for_driver: summaryRow?.forDriver,
+      number_delivery: summaryRow?.numberDelivery,
+      account: (summaryRow?.totalPrice ?? 0) - (summaryRow?.forDriver ?? 0),
+    };
+    if (merchantFilter === '2' && effectiveSecondValue) {
+      body.driver_id = Number(effectiveSecondValue);
+    }
 
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        delivery_ids: selectedRowKeys,
-      }),
+      body: JSON.stringify(body),
     });
 
     const result = await response.json();
@@ -244,6 +296,7 @@ export default function DeliveryPage() {
 
     openNotification('success', 'Тайлан амжилттай нийллээ.');
     setSelectedRowKeys([]);
+    setTableData([]);
 
   } catch (error: any) {
     console.error("Error during report merge:", error);
@@ -407,19 +460,21 @@ export default function DeliveryPage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {/* Filters & Controls */}
       <div className="flex gap-4 items-center w-full p-4" style={{ flexShrink: 0 }}>
-        <Switch
-          checked={isReportMergeMode}
-          onChange={(checked) => {
-            setIsReportMergeMode(checked);
-            setDateRange([null, null]);
-          }}
-          checkedChildren="Тайлан нийлэх"
-          unCheckedChildren="Тайлан харах"
-          style={{
-            backgroundColor: isReportMergeMode ? undefined : '#52c41a',
-            color: 'white',
-          }}
-        />
+        {!isMerchant && (
+          <Switch
+            checked={isReportMergeMode}
+            onChange={(checked) => {
+              setIsReportMergeMode(checked);
+              setDateRange([null, null]);
+            }}
+            checkedChildren="Тайлан нийлэх"
+            unCheckedChildren="Тайлан харах"
+            style={{
+              backgroundColor: isReportMergeMode ? undefined : '#52c41a',
+              color: 'white',
+            }}
+          />
+        )}
         {!isMerchant && (
           <>
             <Select
@@ -489,14 +544,16 @@ export default function DeliveryPage() {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <Space>
-            <div>{selectedRowKeys.length} item(s) selected</div>
-            <Button
-              type="primary"
-              onClick={handleReportMerge}
-              disabled={selectedRowKeys.length === 0}
-            >
-              Тайлан нийлэх
-            </Button>
+            {!isMerchant && <div>{selectedRowKeys.length} item(s) selected</div>}
+            {!isMerchant && (
+              <Button
+                type="primary"
+                onClick={handleReportMerge}
+                disabled={selectedRowKeys.length === 0}
+              >
+                Тайлан нийлэх
+              </Button>
+            )}
             <Button
               icon={<DownloadOutlined />}
               onClick={exportToExcel}

@@ -1,15 +1,15 @@
 'use client';
 
 import React, { useState, useMemo, useRef, useEffect, Suspense } from 'react';
-import { Table, Button, Space, Input, DatePicker, Drawer, Form ,Select,Tag,Modal,Checkbox,message,InputNumber,List,Row,Col,Tooltip} from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import { Table, Button, Space, Input, DatePicker, Drawer, Form, Select, Tag, Modal, Checkbox, message, InputNumber, List, Row, Col, Tooltip } from 'antd';
+import type { CheckboxProps } from 'antd';
+import type { TableColumnsType } from 'antd';
 import { EditOutlined, DeleteOutlined,PlusOutlined, EyeOutlined} from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import * as XLSX from 'xlsx';
 const { Option } = Select;
-import { CheckboxChangeEvent } from 'antd/es/checkbox'; // энэ import маш чухал
 import { useSearchParams } from 'next/navigation';
 import GoogleAddressAutocomplete from '@/components/GoogleAddressAutocomplete';
 
@@ -247,7 +247,7 @@ const [selectedKhorooId, setSelectedKhorooId] = useState<number | null>(null);
     setEditModalItems(prev => prev.filter(item => item.id !== itemId));
   };
   
-const baseColumns: ColumnsType<Delivery> = [
+const baseColumns: TableColumnsType<Delivery> = [
   {
     title: 'Үүссэн огноо',
     dataIndex: 'createdAt',
@@ -355,8 +355,8 @@ const baseColumns: ColumnsType<Delivery> = [
   }
 ];
 
-const columns: ColumnsType<Delivery> = isMerchant
-    ? baseColumns.filter(col => col.key !== 'merchant' && col.key !== 'driver' && col.key !== 'actions') as ColumnsType<Delivery>
+const columns: TableColumnsType<Delivery> = isMerchant
+    ? baseColumns.filter(col => col.key !== 'merchant' && col.key !== 'driver' && col.key !== 'actions') as TableColumnsType<Delivery>
     : baseColumns;
   
   const merchantId = isMerchant ? user.id : null;
@@ -378,7 +378,7 @@ const columns: ColumnsType<Delivery> = isMerchant
   const [driverFilter, setDriverFilter] = useState<number | null>(null);
 
   const [phoneFilter, setPhoneFilter] = useState('');
-  const handleIsPaidChange = (e: CheckboxChangeEvent) => {
+  const handleIsPaidChange: NonNullable<CheckboxProps['onChange']> = (e) => {
     const checked = e.target.checked;
     setIsPaid(checked);
     setPriceDisabled(checked);
@@ -1258,12 +1258,13 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     <div style={{ paddingBottom: '100px' }}> {/* Adding padding to prevent overlap with fixed button */}
       <h1 style={{ marginBottom: 24 }}>Хүргэлт</h1>
 
-      <Space style={{ marginBottom: 16 }} wrap>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'center' }}>
       <Input
     placeholder="Filter by Phone"
     value={phoneFilter}
     onChange={(e) => setPhoneFilter(e.target.value)}
     allowClear
+    style={{ width: 200 }}
   />
           {hasPermission('delivery:excel_import_delivery') && (
 
@@ -1307,13 +1308,24 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
      </Tag>
      
       ))}
-         <Button
-          type="primary"
-          style={{ marginLeft: 'auto' }}
+        <button
+          type="button"
+          style={{
+            marginLeft: 'auto',
+            padding: '4px 15px',
+            fontSize: 14,
+            borderRadius: 6,
+            border: 'none',
+            background: '#1677ff',
+            color: '#fff',
+            cursor: 'pointer',
+            fontWeight: 400,
+            lineHeight: 1.5715,
+          }}
           onClick={handleDeliveryButton}
         >
           + Add Delivery
-        </Button>
+        </button>
      {hasPermission('delivery:excel_import_delivery') && (
   <>
     {/* Add this to your filter section with other filters */}
@@ -1403,7 +1415,7 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
   onChange={handleExcelImport}
 />
 
-      </Space>
+      </div>
 
       <Table
   rowSelection={rowSelection}
@@ -1464,10 +1476,10 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
 <Drawer
   title="Хүргэлт үүсгэх"
   placement="right"
-  visible={isDrawerVisible}
+  open={isDrawerVisible}
   onClose={handleCloseDrawer}
   width={800}  // wider drawer
-  bodyStyle={{ padding: '20px' }}
+  styles={{ body: { padding: '20px' } }}
 >
   <Form form={form}  initialValues={{ merchantId: selectedMerchantId }}
    layout="vertical">
@@ -2232,7 +2244,7 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
       )}
       <Modal
   title="Select Driver"
-  visible={isModalVisible}
+  open={isModalVisible}
   onCancel={() => setIsModalVisible(false)}
   onOk={handleSaveAllocation}
   okText="Save"
@@ -2260,7 +2272,7 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
 </Modal>
       <Modal
         title="Select status"
-        visible={isStatusModal}
+        open={isStatusModal}
         onCancel={() => setIsStatusModal(false)}
         onOk={handeStatusChange}
         okText="Save"
@@ -2282,7 +2294,7 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
 
 <Modal
   title="Delivery History"
-  visible={isHistoryModal}
+  open={isHistoryModal}
   onCancel={() => setIsHistoryModal(false)}
   footer={[
     <Button key="close" onClick={() => setIsHistoryModal(false)}>
@@ -2331,7 +2343,7 @@ const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     
       <Modal
   title="Edit Delivery"
-  visible={isEditModal}
+  open={isEditModal}
   onOk={handleEdit}
   onCancel={handleEditModalCancel}
   okText="Save"

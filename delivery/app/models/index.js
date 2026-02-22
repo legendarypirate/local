@@ -45,6 +45,7 @@ db.requests = require("./request.model.js")(sequelize, Sequelize);
 db.delivery_items = require("./delivery_item.model.js")(sequelize, Sequelize);
 
 db.histories = require("./history.model.js")(sequelize, Sequelize);
+db.driver_tootsoos = require("./driver_tootsoo.model.js")(sequelize, Sequelize);
 
 db.role_permissions = require("./role_permission.model.js")(sequelize, Sequelize);
 
@@ -256,6 +257,16 @@ db.users.hasMany(db.deliveries, {
 db.deliveries.belongsTo(db.users, {
   foreignKey: 'driver_id',
   as: 'driver', // this allows delivery.driver to access the User (driver) info
+});
+
+// DriverTootsoo (driver_tootsoos) belongs to User (driver)
+db.driver_tootsoos.belongsTo(db.users, {
+  foreignKey: 'driver_id',
+  as: 'driver',
+});
+db.users.hasMany(db.driver_tootsoos, {
+  foreignKey: 'driver_id',
+  as: 'driver_tootsoos',
 });
 
 // Region and Khoroo associations

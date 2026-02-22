@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Input, Drawer, Form, Modal, List, Tag, Row, Col, message } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import type { TableColumnsType } from 'antd';
 import { EditOutlined, DeleteOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -347,7 +347,7 @@ export default function DeliveryPage() {
   const { startOfDay } = getTodayDateRange();
 
   // Define columns inside the component to access component functions
-  const columns: ColumnsType<Region> = [
+  const columns: TableColumnsType<Region> = [
     {
       title: 'ID',
       dataIndex: 'id',
@@ -444,7 +444,7 @@ export default function DeliveryPage() {
         open={isDrawerVisible}
         onClose={handleCloseDrawer}
         width="400px"
-        bodyStyle={{ padding: '20px' }}
+        styles={{ body: { padding: '20px' } }}
       >
         <Form form={form} layout="vertical">
           <Form.Item
@@ -485,7 +485,7 @@ export default function DeliveryPage() {
         ]}
         width="80%"
         style={{ top: 20 }}
-        bodyStyle={{ maxHeight: '70vh', overflow: 'auto' }}
+        styles={{ body: { maxHeight: '70vh', overflow: 'auto' } }}
       >
         {deliveryLoading ? (
           <div style={{ textAlign: 'center', padding: '20px' }}>

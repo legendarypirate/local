@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Space, Drawer, Form, message, Switch, Divider } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import type { TableColumnsType } from 'antd';
 import { EditOutlined } from '@ant-design/icons';
 
 interface Role {
@@ -94,7 +94,7 @@ export default function RolePermissionPage() {
     }
   };
 
-  const columns: ColumnsType<Role> = [
+  const columns: TableColumnsType<Role> = [
     {
       title: 'Role',
       dataIndex: 'name',
@@ -134,7 +134,7 @@ export default function RolePermissionPage() {
           setRolePermissions([]);
         }}
         open={drawerVisible}
-        bodyStyle={{ paddingBottom: 80 }}
+        styles={{ body: { paddingBottom: 80 } }}
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           <Form.Item label="Permissions">

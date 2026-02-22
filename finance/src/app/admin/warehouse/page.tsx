@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo,useRef,useEffect } from 'react';
 import { Table, Button, Space, Input, DatePicker, Drawer, Form ,Select,Tag,Modal} from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import type { TableColumnsType } from 'antd';
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
@@ -24,7 +24,7 @@ export default function DeliveryPage() {
   const [regionData, setRegionData] = useState<Region[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
 
-const columns: ColumnsType<Region> = [
+const columns: TableColumnsType<Region> = [
   {
     title: 'Үүссэн огноо',
     dataIndex: 'createdAt',
@@ -207,11 +207,11 @@ const columns: ColumnsType<Region> = [
  <Drawer
         title="Агуулах үүсгэх"
         placement="right"
-        visible={isDrawerVisible}
+        open={isDrawerVisible}
         onClose={handleCloseDrawer}
         width="400px"  // Adjust the width as needed
         height="100%"  // Full height
-        bodyStyle={{ padding: '20px' }}
+        styles={{ body: { padding: '20px' } }}
       >
         <Form form={form} layout="vertical">
 
