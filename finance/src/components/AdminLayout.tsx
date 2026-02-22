@@ -98,6 +98,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [userPermissions, setUserPermissions] = useState<string[] | null>(null);
   const [userName, setUserName] = useState<string>('Хэрэглэгч');
   const [userRole, setUserRole] = useState<number | null>(null);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
   useEffect(() => {
     const permissions = getUserPermissions();
@@ -229,6 +230,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
   };
 
+  const onLogoutClick = () => {
+    setUserDropdownOpen(false);
+    // Show modal after dropdown has closed so it is not unmounted with the dropdown
+    setTimeout(() => showLogoutConfirm(), 0);
+  };
+
   const userDropdownContent = (
     <div style={{ minWidth: 200, padding: '4px 0' }}>
       <div style={{ padding: '8px 12px', color: 'rgba(0,0,0,0.65)', cursor: 'default' }}>
@@ -237,11 +244,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div style={{ borderTop: '1px solid #f0f0f0', margin: '4px 0' }} />
       <button
         type="button"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          showLogoutConfirm();
-        }}
+        onClick={onLogoutClick}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -293,6 +296,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           }}
         >
           <Dropdown
+            open={userDropdownOpen}
+            onOpenChange={setUserDropdownOpen}
             dropdownRender={() => userDropdownContent}
             trigger={['click']}
             placement="bottomRight"
