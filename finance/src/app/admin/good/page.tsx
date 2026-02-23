@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Space, Drawer, Form, Input, Select, Modal, notification, message } from 'antd';
+import { Table, Button, Space, Drawer, Form, Input, Select, Modal, notification, App } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { EditOutlined, DeleteOutlined, CloseOutlined, ExclamationCircleFilled } from '@ant-design/icons';
 
@@ -41,6 +41,7 @@ export default function UsersPage() {
 
   const isMerchant = user?.role === 2;
   const merchantId = isMerchant ? user?.id : null;
+  const { modal, message } = App.useApp();
 
   useEffect(() => {
     document.title = 'Агуулахын бараа';
@@ -117,45 +118,48 @@ export default function UsersPage() {
     });
   };
 
-  // Hard delete with confirmation
+  // Hard delete with confirmation (defer modal so it opens after click – fixes production)
   const handleDeleteGood = (record: Good) => {
-    Modal.confirm({
-      title: 'Барааг устгах уу?',
-      icon: <ExclamationCircleFilled />,
-      content: (
-        <span>
-          Та &quot;{record.name}&quot; барааг бүрмөсөн устгах уу? Энэ үйлдлийг буцаах боломжгүй.
-        </span>
-      ),
-      okText: 'Тийм, устгах',
-      okType: 'danger',
-      cancelText: 'Үгүй',
-      centered: true,
-      onOk: async () => {
-        const hide = message.loading('Барааг устгаж байна...', 0);
-        try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/good/${record.id}`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-          });
-          const result = await response.json().catch(() => ({}));
-          hide();
-          if (response.ok && result.success) {
-            setGood((prev) => prev.filter((g) => g.id !== record.id));
-            message.success('Бараа амжилттай устгагдлаа');
-            openNotification('success', `"${record.name}" бараа устгагдлаа`);
-          } else {
-            message.error(result.message || 'Устгахад алдаа гарлаа');
-            openNotification('error', result.message || 'Устгахад алдаа гарлаа');
+    const r = record;
+    setTimeout(() => {
+      modal.confirm({
+        title: 'Барааг устгах уу?',
+        icon: <ExclamationCircleFilled />,
+        content: (
+          <span>
+            Та &quot;{r.name}&quot; барааг бүрмөсөн устгах уу? Энэ үйлдлийг буцаах боломжгүй.
+          </span>
+        ),
+        okText: 'Тийм, устгах',
+        okType: 'danger',
+        cancelText: 'Үгүй',
+        centered: true,
+        onOk: async () => {
+          const hide = message.loading('Барааг устгаж байна...', 0);
+          try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/good/${r.id}`, {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+            });
+            const result = await response.json().catch(() => ({}));
+            hide();
+            if (response.ok && result.success) {
+              setGood((prev) => prev.filter((g) => g.id !== r.id));
+              message.success('Бараа амжилттай устгагдлаа');
+              openNotification('success', `"${r.name}" бараа устгагдлаа`);
+            } else {
+              message.error(result.message || 'Устгахад алдаа гарлаа');
+              openNotification('error', result.message || 'Устгахад алдаа гарлаа');
+            }
+          } catch (error) {
+            hide();
+            console.error('Delete error:', error);
+            message.error('Сервертэй холбогдоход алдаа гарлаа');
+            openNotification('error', 'Сервертэй холбогдоход алдаа гарлаа');
           }
-        } catch (error) {
-          hide();
-          console.error('Delete error:', error);
-          message.error('Сервертэй холбогдоход алдаа гарлаа');
-          openNotification('error', 'Сервертэй холбогдоход алдаа гарлаа');
-        }
-      },
-    });
+        },
+      });
+    }, 0);
   };
 
   const handleStockUpdate = async (values: { type: number; amount: number }) => {
