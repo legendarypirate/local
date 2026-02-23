@@ -43,40 +43,53 @@ export default function UsersPage() {
   const merchantId = isMerchant ? user?.id : null;
   const { modal, message } = App.useApp();
 
+  const fetchGoods = React.useCallback(async () => {
+    try {
+      const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+      const parsedUser = userData ? JSON.parse(userData) : null;
+      let goodsUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/good`;
+      if (parsedUser?.role === 2) {
+        goodsUrl += `?merchant_id=${parsedUser.id}`;
+      }
+      const goodsRes = await fetch(goodsUrl);
+      const goodsResult = await goodsRes.json();
+      if (goodsResult.success && Array.isArray(goodsResult.data)) {
+        const sortedGoods = [...goodsResult.data].sort((a: Good, b: Good) => b.id - a.id);
+        setGood(sortedGoods);
+      }
+    } catch (err) {
+      console.error('Fetch goods error:', err);
+    }
+  }, []);
+
   useEffect(() => {
     document.title = 'Агуулахын бараа';
 
     const fetchInitialData = async () => {
       setLoading(true);
       try {
-        // Get user from localStorage
         const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
         const parsedUser = userData ? JSON.parse(userData) : null;
         setUser(parsedUser);
         setUsername(typeof window !== 'undefined' ? localStorage.getItem('username') : null);
 
-        // Goods with optional merchant_id filter
         let goodsUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/good`;
         if (parsedUser?.role === 2) {
           goodsUrl += `?merchant_id=${parsedUser.id}`;
         }
-
         const goodsRes = await fetch(goodsUrl);
         const goodsResult = await goodsRes.json();
-        if (goodsResult.success) {
-          // Sort by ID in descending order
-          const sortedGoods = [...goodsResult.data].sort((a, b) => b.id - a.id);
+        if (goodsResult.success && Array.isArray(goodsResult.data)) {
+          const sortedGoods = [...goodsResult.data].sort((a: Good, b: Good) => b.id - a.id);
           setGood(sortedGoods);
         }
 
-        // Users (merchants)
         const userRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user`);
         const userResult = await userRes.json();
         if (userResult.success) {
           setMerchants(userResult.data.filter((u: any) => u.role_id === 2));
         }
 
-        // Wares
         const wareRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ware`);
         const wareResult = await wareRes.json();
         if (wareResult.success) {
@@ -258,9 +271,9 @@ export default function UsersPage() {
       const result = await response.json();
 
       if (response.ok) {
-        setGood((prev) => [...prev, result.data].sort((a, b) => b.id - a.id));
         handleDrawerClose();
         openNotification('success', 'Бараа амжилттай үүсгэгдлээ');
+        await fetchGoods();
       } else {
         console.error('Failed to create good:', result.message);
         openNotification('error', result.message || 'Бараа үүсгэхэд алдаа гарлаа');
@@ -271,7 +284,7 @@ export default function UsersPage() {
     }
   };
  const merchantFilters = React.useMemo(() => {
-    const uniqueMerchants = Array.from(new Set(good.map(item => item.merchant.username)))
+    const uniqueMerchants = Array.from(new Set(good.map(item => item?.merchant?.username).filter(Boolean)))
       .map(username => {
         return {
           text: username,
@@ -289,7 +302,7 @@ export default function UsersPage() {
       title: 'Дэлгүүр',
       dataIndex: ['merchant', 'username'],
       filters: merchantFilters,
-      onFilter: (value, record) => record.merchant.username === value,
+      onFilter: (value, record) => record?.merchant?.username === value,
       filterSearch: true,
     },
     {
