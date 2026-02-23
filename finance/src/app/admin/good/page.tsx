@@ -6,7 +6,6 @@ import type { TableColumnsType } from 'antd';
 import { EditOutlined, DeleteOutlined, CloseOutlined, ExclamationCircleFilled } from '@ant-design/icons';
 
 const { Option } = Select;
-const { confirm } = Modal;
 
 interface Good {
   id: number;
@@ -118,49 +117,43 @@ export default function UsersPage() {
     });
   };
 
-  // ✅ DELETE FUNCTION WITH CONFIRMATION
+  // Hard delete with confirmation
   const handleDeleteGood = (record: Good) => {
-    confirm({
-      title: `Та "${record.name}" барааг устгахдаа итгэлтэй байна уу?`,
+    Modal.confirm({
+      title: 'Барааг устгах уу?',
       icon: <ExclamationCircleFilled />,
-      content: 'Энэ үйлдлийг буцаах боломжгүй. Барааг бүрмөсөн устгана.',
-      okText: 'Тийм',
+      content: (
+        <span>
+          Та &quot;{record.name}&quot; барааг бүрмөсөн устгах уу? Энэ үйлдлийг буцаах боломжгүй.
+        </span>
+      ),
+      okText: 'Тийм, устгах',
       okType: 'danger',
       cancelText: 'Үгүй',
       centered: true,
       onOk: async () => {
+        const hide = message.loading('Барааг устгаж байна...', 0);
         try {
-          // Show loading state
-          message.loading('Барааг устгаж байна...', 2);
-          
           const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/good/${record.id}`, {
             method: 'DELETE',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
           });
-
-          const result = await response.json();
-          
-          if (result.success) {
-            // Remove from local state
-            setGood((prevGoods) => prevGoods.filter((good) => good.id !== record.id));
+          const result = await response.json().catch(() => ({}));
+          hide();
+          if (response.ok && result.success) {
+            setGood((prev) => prev.filter((g) => g.id !== record.id));
             message.success('Бараа амжилттай устгагдлаа');
-            
-            // Show notification
-            openNotification('success', `"${record.name}" бараа амжилттай устгагдлаа`);
+            openNotification('success', `"${record.name}" бараа устгагдлаа`);
           } else {
             message.error(result.message || 'Устгахад алдаа гарлаа');
             openNotification('error', result.message || 'Устгахад алдаа гарлаа');
           }
         } catch (error) {
+          hide();
           console.error('Delete error:', error);
           message.error('Сервертэй холбогдоход алдаа гарлаа');
           openNotification('error', 'Сервертэй холбогдоход алдаа гарлаа');
         }
-      },
-      onCancel() {
-        console.log('Устгах цуцлагдлаа');
       },
     });
   };

@@ -235,28 +235,30 @@ exports.infoupdate = (req, res) => {
 };
 
 
-// Delete a category with the specified id in the request
-exports.delete = (req, res) => {
+// Hard delete a good by id
+exports.delete = async (req, res) => {
   const id = req.params.id;
 
-  Good.destroy({
-    where: { id: id }
-  })
-    .then(num => {
-      if (num == 1) {
-        res.json({ success: true, message: "Category was deleted successfully!" });
+  if (!id) {
+    return res.status(400).json({ success: false, message: 'ID is required.' });
+  }
 
-      } else {
-        res.send({
-          message: `Cannot delete Categories with id=${id}. Maybe category was not found!`
-        });
-      }
-    })
-    .catch(err => {
-      res.status(500).send({
-        message: "Could not delete category with id=" + id
-      });
+  try {
+    const num = await Good.destroy({ where: { id } });
+    if (num === 1) {
+      return res.json({ success: true, message: 'Бараа амжилттай устгагдлаа.' });
+    }
+    return res.status(404).json({
+      success: false,
+      message: `Бараа олдсонгүй эсвэл аль хэдийн устгагдсан. id=${id}`,
     });
+  } catch (err) {
+    console.error('Good delete error:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Барааг устгахад алдаа гарлаа.',
+    });
+  }
 };
 
 // Delete all Tutorials from the database.
