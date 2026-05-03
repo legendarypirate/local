@@ -234,6 +234,15 @@ exports.create = async (req, res) => {
 
     const delivery_id = await generateDeliveryId();
 
+    let driverId = null;
+    const lat = req.body.latitude != null ? parseFloat(req.body.latitude) : null;
+    const lng = req.body.longitude != null ? parseFloat(req.body.longitude) : null;
+    if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+      const zoneController = require("./delivery_zone.controller.js");
+      const zone = await zoneController.findZoneByPoint(lat, lng);
+      if (zone) driverId = zone.driver_id;
+    }
+
     const newDel = {
       delivery_id,
       merchant_id: req.body.merchant_id,
@@ -246,6 +255,9 @@ exports.create = async (req, res) => {
       is_rural: req.body.is_rural ?? false,
       price: req.body.price,
       comment: req.body.comment,
+      driver_id: driverId,
+      latitude: lat,
+      longitude: lng,
     };
 
     const delivery = await Delivery.create(newDel, { transaction: t });

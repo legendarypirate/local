@@ -46,6 +46,7 @@ db.delivery_items = require("./delivery_item.model.js")(sequelize, Sequelize);
 
 db.histories = require("./history.model.js")(sequelize, Sequelize);
 db.driver_tootsoos = require("./driver_tootsoo.model.js")(sequelize, Sequelize);
+db.delivery_zones = require("./delivery_zone.model.js")(sequelize, Sequelize);
 
 db.role_permissions = require("./role_permission.model.js")(sequelize, Sequelize);
 
@@ -290,5 +291,8 @@ db.deliveries.belongsTo(db.khoroos, {
   foreignKey: 'khoroo_id',
   as: 'khoroo', // delivery.khoroo
 });
+
+db.delivery_zones.belongsTo(db.users, { foreignKey: 'driver_id', as: 'driver' });
+db.users.hasMany(db.delivery_zones, { foreignKey: 'driver_id', as: 'delivery_zones' });
 
 module.exports = db;

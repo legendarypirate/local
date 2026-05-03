@@ -17,6 +17,12 @@ const { RangePicker } = DatePicker;
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
 
+/** Remove spaces, dashes, parentheses, etc. — e.g. "9909 0099" → "99090099" */
+function normalizeDeliveryPhone(raw: unknown): string {
+  if (raw == null) return '';
+  return String(raw).replace(/\D/g, '');
+}
+
 interface Good {
   name: string;
 }
@@ -166,7 +172,7 @@ export default function DeliveryPage() {
   const handleEditClick = async (record: Delivery) => {
     setSelectedDelivery(record);
     form.setFieldsValue({
-      phone: record.phone,
+      phone: normalizeDeliveryPhone(record.phone),
       address: record.address,
       price: record.price,
       comment: record.comment || '',
@@ -204,7 +210,7 @@ export default function DeliveryPage() {
       const values = await form.validateFields();
 
       const updateData: any = {
-        phone: values.phone,
+        phone: normalizeDeliveryPhone(values.phone),
         address: values.address,
         price: values.price,
         comment: values.comment,
@@ -1068,7 +1074,7 @@ export default function DeliveryPage() {
       // Construct payload including items from warehouse
       const payload = {
         merchant_id: isMerchant ? user.id : values.merchantId,
-        phone: values.phone,
+        phone: normalizeDeliveryPhone(values.phone),
         address: values.address,
         status: 1,
         dist_id: values.dist_id, // Add district ID
@@ -1149,7 +1155,7 @@ export default function DeliveryPage() {
       const rows = json.slice(1); // Skip header row
       const formatted = rows.map((row: any) => ({
         merchantName: row[0],
-        phone: row[1],
+        phone: normalizeDeliveryPhone(row[1]),
         address: row[2],
         price: row[3],
         comment: row[4],
@@ -1578,9 +1584,10 @@ export default function DeliveryPage() {
           <Form.Item
             label="Утас"
             name="phone"
+            normalize={(v) => normalizeDeliveryPhone(v)}
             rules={[{ required: true, message: 'Please input the phone number!' }]}
           >
-            <Input placeholder="Enter phone number" />
+            <Input placeholder="99090099 (зайгүй)" inputMode="numeric" />
           </Form.Item>
 
           <Form.Item
@@ -2470,8 +2477,13 @@ export default function DeliveryPage() {
         width={600}
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="phone" label="Phone" rules={[{ required: true, message: 'Please enter phone number' }]}>
-            <Input />
+          <Form.Item
+            name="phone"
+            label="Phone"
+            normalize={(v) => normalizeDeliveryPhone(v)}
+            rules={[{ required: true, message: 'Please enter phone number' }]}
+          >
+            <Input inputMode="numeric" />
           </Form.Item>
           <Form.Item name="address" label="Address" rules={[{ required: true, message: 'Please enter address' }]}>
             <Input />

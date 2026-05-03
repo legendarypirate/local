@@ -115,6 +115,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { key: '/admin/driver', icon: <UserOutlined />, label: 'Жолооч', permission: 'log:view_log' },
     { key: '/admin/order', icon: <ShoppingCartOutlined />, label: 'Татан авалт', permission: 'order:view_order' },
     { key: '/admin/region', icon: <AppstoreAddOutlined />, label: 'Бүс', permission: 'region:view_region' },
+    { key: '/admin/delivery-zones', icon: <AppstoreAddOutlined />, label: 'Хүргэлтийн бүс зургаар', permission: 'delivery:view_delivery' },
     { key: '/admin/notification', icon: <BellOutlined />, label: 'Масс мэдэгдэл', permission: 'notification:view_notification' },
     {
       key: 'good',

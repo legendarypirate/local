@@ -231,19 +231,39 @@ exports.report = async (req, res) => {
       raw: true,
     });
 
-    // 2️⃣ Delivered stats per local date based on delivered_at
+    const deliveredAtRange = {
+      [Op.between]: [
+        new Date(`${start_date}T00:00:00+08:00`),
+        new Date(`${end_date}T23:59:59+08:00`),
+      ],
+    };
+
+    // 2️⃣ Delivered (status 3) per local date based on delivered_at
     const deliveredStats = await Delivery.findAll({
       where: {
         ...driverFilter,
         status: 3,
-        delivered_at: { [Op.between]: [new Date(`${start_date}T00:00:00+08:00`), new Date(`${end_date}T23:59:59+08:00`)] },
+        delivered_at: deliveredAtRange,
       },
       attributes: [
         [fn('DATE', col('delivered_at')), 'date'],
         [fn('COUNT', col('id')), 'delivered_count'],
         [fn('SUM', col('price')), 'delivered_total_price'],
-        [literal('COUNT(*) * 4000'), 'for_driver'],
-        [literal('SUM(price) - (COUNT(*) * 4000)'), 'driver_margin'],
+      ],
+      group: [fn('DATE', col('delivered_at'))],
+      raw: true,
+    });
+
+    // 2b️⃣ Хаягаар очсон (status 7) — same +4000 ₮/ш toward for_driver as delivered
+    const addressVisitStats = await Delivery.findAll({
+      where: {
+        ...driverFilter,
+        status: 7,
+        delivered_at: deliveredAtRange,
+      },
+      attributes: [
+        [fn('DATE', col('delivered_at')), 'date'],
+        [fn('COUNT', col('id')), 'address_visit_count'],
       ],
       group: [fn('DATE', col('delivered_at'))],
       raw: true,
@@ -252,24 +272,37 @@ exports.report = async (req, res) => {
     // 3️⃣ Merge by date
     const resultMap = {};
     totalDeliveries.forEach(item => {
-      resultMap[item.date] = { total_deliveries: parseInt(item.total_deliveries) };
+      resultMap[item.date] = { total_deliveries: parseInt(item.total_deliveries, 10) };
     });
     deliveredStats.forEach(item => {
       if (!resultMap[item.date]) resultMap[item.date] = {};
       resultMap[item.date] = { ...resultMap[item.date], ...item };
     });
+    addressVisitStats.forEach(item => {
+      if (!resultMap[item.date]) resultMap[item.date] = {};
+      resultMap[item.date].address_visit_count = parseInt(item.address_visit_count, 10) || 0;
+    });
 
-    // 4️⃣ Convert to array, sort DESC
+    // 4️⃣ Convert to array, sort DESC — for_driver = 4000 * (хүргэгдсэн + хаягаар очсон)
     const finalData = Object.keys(resultMap)
       .sort((a, b) => new Date(b) - new Date(a))
-      .map(date => ({
-        date,
-        total_deliveries: resultMap[date].total_deliveries || 0,
-        delivered_count: resultMap[date].delivered_count || '0',
-        delivered_total_price: resultMap[date].delivered_total_price || '0',
-        for_driver: resultMap[date].for_driver || '0',
-        driver_margin: resultMap[date].driver_margin || '0',
-      }));
+      .map(date => {
+        const row = resultMap[date];
+        const s3 = parseInt(row.delivered_count ?? 0, 10) || 0;
+        const s7 = parseInt(row.address_visit_count ?? 0, 10) || 0;
+        const sumPrice = parseFloat(row.delivered_total_price ?? 0) || 0;
+        const forDriver = s3 * 4000 + s7 * 4000;
+        const driverMargin = sumPrice - forDriver;
+        return {
+          date,
+          total_deliveries: row.total_deliveries || 0,
+          delivered_count: String(s3),
+          address_visit_count: String(s7),
+          delivered_total_price: String(sumPrice),
+          for_driver: String(forDriver),
+          driver_margin: String(driverMargin),
+        };
+      });
 
     return res.json({ success: true, data: finalData });
   } catch (error) {
