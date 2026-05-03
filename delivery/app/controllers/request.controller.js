@@ -138,20 +138,28 @@ exports.create = (req, res) => {
       return res.status(500).json({ success: false, message: err.message });
     }
   };
-  // Decline request
+  // Decline request (only while pending: status = 1)
   exports.decline = async (req, res) => {
+    const requestId = parseInt(req.params.id, 10);
+    if (!requestId || Number.isNaN(requestId)) {
+      return res.status(400).json({ success: false, message: 'Invalid request id.' });
+    }
     try {
-      const [updated] = await Request.update(
-        { status: 3 }, // declined
-        { where: { id: req.params.id } }
-      );
-      if (updated) {
-        res.json({ success: true, message: 'Request declined.' });
-      } else {
-        res.status(404).json({ success: false, message: 'Request not found.' });
+      const row = await Request.findByPk(requestId);
+      if (!row) {
+        return res.status(404).json({ success: false, message: 'Request not found.' });
       }
+      if (Number(row.status) !== 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Зөвхөн хүлээгдэж буй хүсэлтийг татгалзана.',
+        });
+      }
+      await row.update({ status: 3 });
+      return res.json({ success: true, message: 'Request declined.' });
     } catch (err) {
-      res.status(500).json({ success: false, message: err.message });
+      console.error('Decline error:', err);
+      return res.status(500).json({ success: false, message: err.message });
     }
   };
   

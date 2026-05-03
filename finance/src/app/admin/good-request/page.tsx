@@ -8,11 +8,10 @@ import {
   Select,
   Input,
   Tag,
-  message,
+  App,
   Drawer,
   Form,
   InputNumber,
-  Modal,
 } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { CheckOutlined, CloseOutlined, PlusOutlined } from '@ant-design/icons';
@@ -59,7 +58,16 @@ const STATUS_LABELS: Record<number, string> = {
   3: 'Татгалзсан',
 };
 
+function authHeaders(): HeadersInit {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 export default function GoodRequestPage() {
+  const { message, modal } = App.useApp();
   const [requests, setRequests] = useState<GoodRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<{ id: number; role?: number; role_id?: number } | null>(null);
@@ -93,7 +101,7 @@ export default function GoodRequestPage() {
           isMerchant && merchantId
             ? `${process.env.NEXT_PUBLIC_API_URL}/api/request?merchant_id=${merchantId}`
             : `${process.env.NEXT_PUBLIC_API_URL}/api/request`;
-        const res = await fetch(url);
+        const res = await fetch(url, { headers: authHeaders() });
         const result = await res.json();
         if (result.success && Array.isArray(result.data)) {
           setRequests(result.data);
@@ -101,7 +109,9 @@ export default function GoodRequestPage() {
           setRequests([]);
         }
 
-        const wareRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ware`);
+        const wareRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ware`, {
+          headers: authHeaders(),
+        });
         const wareResult = await wareRes.json();
         if (wareResult.success && Array.isArray(wareResult.data)) {
           setWares(wareResult.data);
@@ -109,7 +119,8 @@ export default function GoodRequestPage() {
 
         if (isMerchant && merchantId) {
           const goodRes = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/good?merchant_id=${merchantId}`
+            `${process.env.NEXT_PUBLIC_API_URL}/api/good?merchant_id=${merchantId}`,
+            { headers: authHeaders() }
           );
           const goodResult = await goodRes.json();
           if (goodResult.success && Array.isArray(goodResult.data)) {
@@ -137,7 +148,7 @@ export default function GoodRequestPage() {
 
   const filteredRequests = useMemo(() => {
     let list = requests;
-    if (statusFilter != null) list = list.filter((r) => r.status === statusFilter);
+    if (statusFilter != null) list = list.filter((r) => Number(r.status) === statusFilter);
     if (typeFilter != null) list = list.filter((r) => r.type === typeFilter);
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase().trim();
@@ -154,7 +165,7 @@ export default function GoodRequestPage() {
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/request/approve/${record.id}`,
-        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{}' }
+        { method: 'PUT', headers: authHeaders(), body: '{}' }
       );
       const result = await res.json();
       if (result.success) {
@@ -169,27 +180,31 @@ export default function GoodRequestPage() {
   };
 
   const handleDecline = (record: GoodRequest) => {
-    Modal.confirm({
+    modal.confirm({
       title: 'Татгалзах',
       content: 'Та энэ хүсэлтийг татгалзахдаа итгэлтэй байна уу?',
       okText: 'Тийм',
       cancelText: 'Үгүй',
+      centered: true,
       onOk: async () => {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/request/decline/${record.id}`,
+          { method: 'PUT', headers: authHeaders(), body: '{}' }
+        );
+        let result: { success?: boolean; message?: string } = {};
         try {
-          const res = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/request/decline/${record.id}`,
-            { method: 'PUT', headers: { 'Content-Type': 'application/json' } }
-          );
-          const result = await res.json();
-          if (result.success) {
-            message.success('Хүсэлт татгалзсан');
-            loadData();
-          } else {
-            message.error(result.message || 'Татгалзахдаа алдаа гарлаа');
-          }
+          result = await res.json();
         } catch {
-          message.error('Татгалзахдаа алдаа гарлаа');
+          message.error('Серверийн хариу буруу байна');
+          throw new Error('invalid json');
         }
+        if (result.success) {
+          message.success('Хүсэлт татгалзсан');
+          await loadData();
+          return;
+        }
+        message.error(result.message || 'Татгалзахдаа алдаа гарлаа');
+        throw new Error(result.message || 'decline failed');
       },
     });
   };
@@ -217,7 +232,7 @@ export default function GoodRequestPage() {
       }
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/request/stock`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify(payload),
       });
       const result = await res.json();
@@ -289,11 +304,14 @@ export default function GoodRequestPage() {
       title: 'Төлөв',
       dataIndex: 'status',
       key: 'status',
-      render: (s: number) => (
-        <Tag color={s === 1 ? 'gold' : s === 2 ? 'green' : 'red'}>
-          {STATUS_LABELS[s] ?? '—'}
-        </Tag>
-      ),
+      render: (s: number) => {
+        const sn = Number(s);
+        return (
+          <Tag color={sn === 1 ? 'gold' : sn === 2 ? 'green' : 'red'}>
+            {STATUS_LABELS[sn] ?? '—'}
+          </Tag>
+        );
+      },
     },
     {
       title: 'Огноо',
@@ -307,7 +325,7 @@ export default function GoodRequestPage() {
             title: 'Үйлдэл',
             key: 'actions',
             render: (_: unknown, record: GoodRequest) =>
-              record.status === 1 ? (
+              Number(record.status) === 1 ? (
                 <Space>
                   <Button
                     type="primary"
