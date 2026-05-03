@@ -733,9 +733,9 @@ export default function NewReportPage() {
         <Table<Delivery>
           size="small"
           rowKey="id"
-          pagination={{ pageSize: 15, showSizeChanger: true, pageSizeOptions: [10, 15, 30, 50] }}
+          pagination={false}
           dataSource={drawerDeliveries}
-          scroll={{ x: 960 }}
+          scroll={{ x: 960, y: 'calc(70vh - 200px)' }}
           columns={drawerDeliveryColumns}
         />
       </Drawer>
