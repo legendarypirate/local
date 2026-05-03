@@ -425,7 +425,6 @@ export default function DeliveryPage() {
   const [selectedDriver, setSelectedDriver] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const [fetched, setFetched] = useState(false); // prevent re-fetch
   const [merchantFilter, setMerchantFilter] = useState<number | null>(null);
   const [driverFilter, setDriverFilter] = useState<number | null>(null);
 
@@ -439,7 +438,7 @@ export default function DeliveryPage() {
     }
   };
 
-  const handleDriverFilterChange = (value: number | null) => {
+  const handleMerchantFilterChange = (value: number | null) => {
     setMerchantFilter(value);
     setPagination((prev) => ({ ...prev, current: 1 }));
   };
@@ -453,38 +452,30 @@ export default function DeliveryPage() {
     setSelectedStatusId(value); // Set the selected driver ID
   };
 
-  const fetchMerchant = async () => {
-    if (fetched) return; // only fetch once
-    setLoading(true);
+  /** Дэлгүүрийн шүүлт: `users` хүснэгтийн харилцагч (role_id=2), id + username */
+  const ensureMerchantsForFilter = async () => {
+    if (merchants.length > 0) return;
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/merchant`);
       const result = await response.json();
-      if (result.success) {
-        setDrivers(result.data);
-        setFetched(true);
+      if (result.success && Array.isArray(result.data)) {
+        setMerchants(result.data);
       }
     } catch (error) {
-      console.error('Failed to fetch drivers:', error);
-    } finally {
-      setLoading(false);
+      console.error('Failed to fetch merchants:', error);
     }
   };
 
-
   const fetchDriver = async () => {
-    if (fetched) return; // only fetch once
-    setLoading(true);
+    if (realdriver.length > 0) return;
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/drivers`);
       const result = await response.json();
-      if (result.success) {
+      if (result.success && Array.isArray(result.data)) {
         setRealdriver(result.data);
-        setFetched(true);
       }
     } catch (error) {
       console.error('Failed to fetch drivers:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -920,10 +911,6 @@ export default function DeliveryPage() {
         if (userIsMerchant) {
           url += `&merchant_id=${merchantId}`;
         } else if (merchantFilter) {
-          url += `&merchant=${merchantFilter}`;
-        }
-
-        if (merchantFilter) {
           url += `&merchant_id=${merchantFilter}`;
         }
 
@@ -1331,9 +1318,10 @@ export default function DeliveryPage() {
           <Select
             placeholder="Filter by Driver"
             style={{ width: 200 }}
+            value={driverFilter ?? undefined}
             onChange={handleRealDriverFilterChange}
             onDropdownVisibleChange={(open) => {
-              if (open) fetchDriver(); // if you want to fetch on demand
+              if (open) fetchDriver();
             }}
             allowClear
             showSearch
@@ -1427,19 +1415,20 @@ export default function DeliveryPage() {
               </Select>
             )}
             <Select
-              placeholder="Filter by Merchant"
-              style={{ width: 200 }}
-              onChange={handleDriverFilterChange}
+              placeholder="Дэлгүүрээр шүүх (users.id)"
+              style={{ width: 240 }}
+              value={merchantFilter ?? undefined}
+              onChange={handleMerchantFilterChange}
               onDropdownVisibleChange={(open) => {
-                if (open) fetchMerchant();
+                if (open) void ensureMerchantsForFilter();
               }}
               allowClear
               showSearch
-              optionFilterProp="children"
+              optionFilterProp="label"
             >
-              {merchants.map((driver) => (
-                <Option key={driver.id} value={driver.id}>
-                  {driver.username || `Driver #${driver.id}`}
+              {merchants.map((m) => (
+                <Option key={m.id} value={m.id} label={`${m.username ?? ''} ${m.id}`}>
+                  {m.username ?? '—'} (#{m.id})
                 </Option>
               ))}
             </Select>

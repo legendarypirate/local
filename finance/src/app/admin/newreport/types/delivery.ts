@@ -13,6 +13,8 @@ export interface Delivery {
   comment?: string;
   driver: { username: string } | null;
   createdAt?: string;
+  delivered_at?: string;
+  status_name?: { status: string; color: string };
   merchant: {
     username: string;
     report_price?: number;

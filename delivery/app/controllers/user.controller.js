@@ -2,27 +2,63 @@ const db = require("../models");
 const User = db.users;
 const Delivery = db.deliveries;
 const Op = db.Sequelize.Op;
+const { fn, col, where } = db.Sequelize;
 const sequelize = db.sequelize;
 const bcrypt = require('bcryptjs');
 const saltRounds = 10; // Number of salt rounds for bcrypt
+
+function normalizePhoneDigits(raw) {
+  if (raw == null || raw === "") return "";
+  return String(raw).replace(/\D/g, "");
+}
 
 // Create and Save a new User
 exports.create = async (req, res) => {
   // Validate request
   if (!req.body.username || !req.body.role_id || !req.body.password) {
-    res.status(400).send({
-      message: "Content can not be empty!"
+    return res.status(400).json({
+      success: false,
+      message: "Content can not be empty!",
     });
-    return;
   }
 
+  const trimmedUsername = String(req.body.username).trim();
+  const phoneDigits = normalizePhoneDigits(req.body.phone);
+
   try {
+    const existingName = await User.findOne({
+      where: where(fn("LOWER", col("username")), trimmedUsername.toLowerCase()),
+      attributes: ["id", "username"],
+    });
+    if (existingName) {
+      return res.status(409).json({
+        success: false,
+        message: "Ийм нэртэй хэрэглэгч аль хэдийн бүртгэлтэй байна.",
+      });
+    }
+
+    if (phoneDigits.length > 0) {
+      const withPhones = await User.findAll({
+        attributes: ["id", "username", "phone"],
+        where: {
+          phone: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: "" }] },
+        },
+      });
+      const phoneDup = withPhones.find((u) => normalizePhoneDigits(u.phone) === phoneDigits);
+      if (phoneDup) {
+        return res.status(409).json({
+          success: false,
+          message: "Ийм утасны дугаартай хэрэглэгч аль хэдийн бүртгэлтэй байна.",
+        });
+      }
+    }
+
     // Hash the password
     const hashedPassword = await bcrypt.hash(req.body.password, saltRounds);
 
     // Create a User object
     const user = {
-      username: req.body.username,
+      username: trimmedUsername,
       phone: req.body.phone,
       email: req.body.email,
       shop_phone: req.body.shop_phone,
@@ -30,15 +66,22 @@ exports.create = async (req, res) => {
       role_id: req.body.role_id,
       password: hashedPassword,
       account_number: req.body.account_number,
-      facebook_name: req.body.facebook_name
+      facebook_name: req.body.facebook_name,
     };
 
     // Save User in the database
     const data = await User.create(user);
-    res.send(data);
+    return res.status(201).json({ success: true, data });
   } catch (err) {
-    res.status(500).send({
-      message: err.message || "Some error occurred while creating the User."
+    if (err.name === "SequelizeUniqueConstraintError") {
+      return res.status(409).json({
+        success: false,
+        message: "Ийм нэр эсвэл утас аль хэдийн системд байна.",
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Some error occurred while creating the User.",
     });
   }
 };

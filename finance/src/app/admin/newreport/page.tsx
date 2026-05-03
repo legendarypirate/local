@@ -5,6 +5,7 @@ import {
   App,
   Button,
   DatePicker,
+  Drawer,
   Select,
   Space,
   Table,
@@ -20,6 +21,12 @@ import type { Delivery } from './types/delivery';
 import type { ReportRow, ReportType } from './types/report';
 
 const { Title } = Typography;
+
+function dedupeDeliveriesById(list: Delivery[]): Delivery[] {
+  const m = new Map<number, Delivery>();
+  for (const d of list) m.set(d.id, d);
+  return Array.from(m.values());
+}
 const { RangePicker } = DatePicker;
 
 const DRIVER_UNIT = 4000;
@@ -50,6 +57,30 @@ function getStoredUser(): { id?: number; role?: number; role_id?: number; userna
   }
 }
 
+const drawerDeliveryColumns: TableColumnsType<Delivery> = [
+  { title: 'ID', dataIndex: 'id', width: 72, fixed: 'left' },
+  { title: 'Дэлгүүр', width: 120, render: (_, r) => r.merchant?.username ?? '-' },
+  { title: 'Хаяг', dataIndex: 'address', ellipsis: true },
+  { title: 'Утас', dataIndex: 'phone', width: 112 },
+  {
+    title: 'Үнэ',
+    dataIndex: 'price',
+    width: 96,
+    render: (v: number) => `${Number(v ?? 0).toLocaleString()} ₮`,
+  },
+  {
+    title: 'Төлөв',
+    width: 120,
+    render: (_: unknown, r: Delivery) => r.status_name?.status ?? String(r.status),
+  },
+  {
+    title: 'Хүргэгдсэн',
+    width: 140,
+    render: (_: unknown, r: Delivery) =>
+      r.delivered_at ? dayjs(r.delivered_at).format('YYYY-MM-DD HH:mm') : '-',
+  },
+];
+
 export default function NewReportPage() {
   const { message: msg } = App.useApp();
   const [loading, setLoading] = useState(false);
@@ -61,6 +92,9 @@ export default function NewReportPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [drivers, setDrivers] = useState<{ id: number; username: string }[]>([]);
   const [merchants, setMerchants] = useState<{ id: number; username: string }[]>([]);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerTitle, setDrawerTitle] = useState('');
+  const [drawerDeliveries, setDrawerDeliveries] = useState<Delivery[]>([]);
 
   useEffect(() => {
     document.title = 'Тайлан (шинэ)';
@@ -228,6 +262,9 @@ export default function NewReportPage() {
       const unitOrder = unitForType(typeToUse, isCustomer);
       const pricePerDelivery = typeToUse === 'driver' ? DRIVER_UNIT : MERCHANT_UNIT;
 
+      let rowKeySeq = 0;
+      const nextRowKey = () => `r-${rowKeySeq++}`;
+
       const reportRows: ReportRow[] = Object.entries(groupedData).map(([id, groupDeliveries]) => {
         const deliveredCount = groupDeliveries.length;
         const totalPrice = groupDeliveries.reduce((sum, d) => sum + parseFloat(String(d.price)), 0);
@@ -253,6 +290,7 @@ export default function NewReportPage() {
               : groupDeliveries[0]?.merchant?.username || 'Unknown';
 
         return {
+          rowKeyId: nextRowKey(),
           dateRange: `${startDate} ~ ${endDate}`,
           name,
           deliveredDeliveries: deliveredCount,
@@ -263,6 +301,8 @@ export default function NewReportPage() {
           status5MerchantAmount: 0,
           status5DriverAmount: 0,
           orderCount,
+          deliveredDetails: [...groupDeliveries],
+          addressVisitDetails: [...status5GroupDeliveries],
         };
       });
 
@@ -287,6 +327,7 @@ export default function NewReportPage() {
                 : status5GroupDeliveries[0]?.merchant?.username || 'Unknown';
 
           reportRows.push({
+            rowKeyId: nextRowKey(),
             dateRange: `${startDate} ~ ${endDate}`,
             name,
             deliveredDeliveries: 0,
@@ -297,6 +338,8 @@ export default function NewReportPage() {
             status5MerchantAmount: 0,
             status5DriverAmount: 0,
             orderCount,
+            deliveredDetails: [],
+            addressVisitDetails: [...status5GroupDeliveries],
           });
         }
       });
@@ -313,6 +356,7 @@ export default function NewReportPage() {
                 : groupOrders[0]?.merchant?.username || 'Unknown';
 
           reportRows.push({
+            rowKeyId: nextRowKey(),
             dateRange: `${startDate} ~ ${endDate}`,
             name,
             deliveredDeliveries: 0,
@@ -323,6 +367,8 @@ export default function NewReportPage() {
             status5MerchantAmount: 0,
             status5DriverAmount: 0,
             orderCount,
+            deliveredDetails: [],
+            addressVisitDetails: [],
           });
         }
       });
@@ -446,12 +492,57 @@ export default function NewReportPage() {
   const typeToUse = isCustomer ? 'now' : reportType;
   const nameColTitle = typeToUse === 'driver' ? 'Жолооч' : 'Дэлгүүр';
 
+  const openDeliveryDrawer = (title: string, list: Delivery[]) => {
+    if (list.length === 0) return;
+    setDrawerTitle(title);
+    setDrawerDeliveries(list);
+    setDrawerOpen(true);
+  };
+
   const columns: TableColumnsType<ReportRow> = [
     { title: 'Огноо', dataIndex: 'dateRange', key: 'dr' },
     ...(!isCustomer ? [{ title: nameColTitle, dataIndex: 'name', key: 'name' }] : []),
     { title: 'Нийт хүргэлт', dataIndex: 'totalDeliveries', key: 'td' },
-    { title: 'Хүргэсэн хүргэлт', dataIndex: 'deliveredDeliveries', key: 'dd' },
-    { title: 'Хаягаар очсон', dataIndex: 'status5Deliveries', key: 's5' },
+    {
+      title: 'Хүргэсэн хүргэлт',
+      dataIndex: 'deliveredDeliveries',
+      key: 'dd',
+      render: (v: number, row: ReportRow) =>
+        v > 0 ? (
+          <Button
+            type="link"
+            size="small"
+            style={{ padding: 0, height: 'auto' }}
+            onClick={() =>
+              openDeliveryDrawer(`${row.name} — Хүргэсэн хүргэлт`, row.deliveredDetails)
+            }
+          >
+            {v}
+          </Button>
+        ) : (
+          v
+        ),
+    },
+    {
+      title: 'Хаягаар очсон',
+      dataIndex: 'status5Deliveries',
+      key: 's5',
+      render: (v: number, row: ReportRow) =>
+        v > 0 ? (
+          <Button
+            type="link"
+            size="small"
+            style={{ padding: 0, height: 'auto' }}
+            onClick={() =>
+              openDeliveryDrawer(`${row.name} — Хаягаар очсон`, row.addressVisitDetails)
+            }
+          >
+            {v}
+          </Button>
+        ) : (
+          v
+        ),
+    },
     { title: 'Захиалгын тоо', dataIndex: 'orderCount', key: 'oc' },
     {
       title: 'Нийт тооцоо',
@@ -531,7 +622,7 @@ export default function NewReportPage() {
       </Space>
 
       <Table<ReportRow>
-        rowKey={(_, i) => String(i)}
+        rowKey={(r) => r.rowKeyId}
         loading={loading}
         columns={columns}
         dataSource={reportData}
@@ -549,10 +640,42 @@ export default function NewReportPage() {
                 <strong>{totals.totalDeliveries}</strong>
               </Table.Summary.Cell>
               <Table.Summary.Cell index={3}>
-                <strong>{totals.deliveredDeliveries}</strong>
+                {totals.deliveredDeliveries > 0 ? (
+                  <Button
+                    type="link"
+                    size="small"
+                    style={{ padding: 0, height: 'auto' }}
+                    onClick={() =>
+                      openDeliveryDrawer(
+                        'Нийт — Хүргэсэн хүргэлт',
+                        dedupeDeliveriesById(reportData.flatMap((r) => r.deliveredDetails))
+                      )
+                    }
+                  >
+                    <strong>{totals.deliveredDeliveries}</strong>
+                  </Button>
+                ) : (
+                  <strong>{totals.deliveredDeliveries}</strong>
+                )}
               </Table.Summary.Cell>
               <Table.Summary.Cell index={4}>
-                <strong>{totals.status5Deliveries}</strong>
+                {totals.status5Deliveries > 0 ? (
+                  <Button
+                    type="link"
+                    size="small"
+                    style={{ padding: 0, height: 'auto' }}
+                    onClick={() =>
+                      openDeliveryDrawer(
+                        'Нийт — Хаягаар очсон',
+                        dedupeDeliveriesById(reportData.flatMap((r) => r.addressVisitDetails))
+                      )
+                    }
+                  >
+                    <strong>{totals.status5Deliveries}</strong>
+                  </Button>
+                ) : (
+                  <strong>{totals.status5Deliveries}</strong>
+                )}
               </Table.Summary.Cell>
               <Table.Summary.Cell index={5}>
                 <strong>{totals.orderCount}</strong>
@@ -570,6 +693,25 @@ export default function NewReportPage() {
           ) : null
         }
       />
+
+      <Drawer
+        title={drawerTitle}
+        placement="bottom"
+        height="70%"
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        destroyOnClose
+        styles={{ body: { paddingTop: 8 } }}
+      >
+        <Table<Delivery>
+          size="small"
+          rowKey="id"
+          pagination={{ pageSize: 15, showSizeChanger: true, pageSizeOptions: [10, 15, 30, 50] }}
+          dataSource={drawerDeliveries}
+          scroll={{ x: 960 }}
+          columns={drawerDeliveryColumns}
+        />
+      </Drawer>
     </div>
   );
 }

@@ -37,6 +37,24 @@ interface User {
   updatedAt: string;
 }
 
+function normalizeUserPhone(raw: unknown): string {
+  if (raw == null) return '';
+  return String(raw).replace(/\D/g, '');
+}
+
+/** Үүсгэхэд: нэр эсвэл утас давхардвал ямар талбар вэ. */
+function findDuplicateUsernameOrPhone(
+  list: User[],
+  username: string,
+  phone: string | undefined
+): 'username' | 'phone' | null {
+  const u = String(username).trim().toLowerCase();
+  const p = normalizeUserPhone(phone ?? '');
+  if (list.some((x) => String(x.username ?? '').trim().toLowerCase() === u)) return 'username';
+  if (p.length > 0 && list.some((x) => normalizeUserPhone(x.phone) === p)) return 'phone';
+  return null;
+}
+
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
@@ -135,6 +153,16 @@ export default function UsersPage() {
     try {
       const values = await form.validateFields();
 
+      const dup = findDuplicateUsernameOrPhone(users, values.username, values.phone);
+      if (dup === 'username') {
+        message.error('Ийм нэртэй хэрэглэгч аль хэдийн байна.');
+        return;
+      }
+      if (dup === 'phone') {
+        message.error('Ийм утасны дугаартай хэрэглэгч аль хэдийн байна.');
+        return;
+      }
+
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user`, {
         method: 'POST',
         headers: {
@@ -143,7 +171,13 @@ export default function UsersPage() {
         body: JSON.stringify(values),
       });
 
-      const result = await response.json();
+      let result: { success?: boolean; message?: string } = {};
+      try {
+        result = await response.json();
+      } catch {
+        message.error('Серверийн хариу буруу байна');
+        return;
+      }
 
       if (response.ok && result.success) {
         message.success('Хэрэглэгч амжилттай үүслээ');
