@@ -258,6 +258,13 @@ export default function UsersPage() {
 
   const columns: TableColumnsType<User> = [
     {
+      title: 'ID',
+      dataIndex: 'id',
+      width: 80,
+      sorter: (a, b) => a.id - b.id,
+      defaultSortOrder: 'descend',
+    },
+    {
       title: 'Username',
       dataIndex: 'username',
     },

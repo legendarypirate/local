@@ -135,9 +135,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       label: 'Тайлан',
       permission: 'reports:view_reports',
       children: [
-        { key: '/admin/report', icon: <FileTextOutlined />, label: 'Тайлан', permission: 'log:view_log' },
         { key: '/admin/newreport', icon: <FileTextOutlined />, label: 'Тайлан (шинэ)', permission: 'role:view_role' },
-
       ],
     },
     { key: '/admin/log', icon: <FileTextOutlined />, label: 'Үйлдлийн лог', permission: 'log:view_log' },

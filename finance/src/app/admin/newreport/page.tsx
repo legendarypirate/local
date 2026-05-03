@@ -499,6 +499,28 @@ export default function NewReportPage() {
     setDrawerOpen(true);
   };
 
+  const exportDrawerDeliveriesToExcel = () => {
+    if (drawerDeliveries.length === 0) {
+      msg.warning('Экспортлох хүргэлт байхгүй');
+      return;
+    }
+    const rows = drawerDeliveries.map((d) => ({
+      ID: d.id,
+      Дэлгүүр: d.merchant?.username ?? '',
+      Хаяг: d.address ?? '',
+      Утас: d.phone ?? '',
+      Үнэ: Number(d.price ?? 0),
+      Төлөв: d.status_name?.status ?? String(d.status),
+      'Хүргэгдсэн огноо': d.delivered_at ? dayjs(d.delivered_at).format('YYYY-MM-DD HH:mm') : '',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Хүргэлт');
+    const safe = drawerTitle.replace(/[/\\?%*:|"<>]/g, '_').slice(0, 80);
+    XLSX.writeFile(wb, `deliveries_${safe}_${dayjs().format('YYYYMMDD-HHmmss')}.xlsx`);
+    msg.success('Excel татагдлаа');
+  };
+
   const columns: TableColumnsType<ReportRow> = [
     { title: 'Огноо', dataIndex: 'dateRange', key: 'dr' },
     ...(!isCustomer ? [{ title: nameColTitle, dataIndex: 'name', key: 'name' }] : []),
@@ -702,6 +724,11 @@ export default function NewReportPage() {
         onClose={() => setDrawerOpen(false)}
         destroyOnClose
         styles={{ body: { paddingTop: 8 } }}
+        extra={
+          <Button type="primary" onClick={exportDrawerDeliveriesToExcel} disabled={drawerDeliveries.length === 0}>
+            Excel
+          </Button>
+        }
       >
         <Table<Delivery>
           size="small"
