@@ -607,9 +607,15 @@ exports.createAddressChangeRequest = async (req, res) => {
     }
 
     const prev = delivery.address != null ? String(delivery.address) : "";
-    if (addr === prev.trim()) {
-      return res.status(400).json({ success: false, message: "Address unchanged" });
-    }
+    const prevNorm = prev.trim();
+    const addrNorm = addr.trim();
+    console.log("[createAddressChangeRequest]", {
+      delivery_id: id,
+      driver_user_id: driverId,
+      previous_address_len: prevNorm.length,
+      new_address_len: addrNorm.length,
+      same_as_previous: addrNorm === prevNorm,
+    });
 
     await DeliveryAddressRequest.create({
       delivery_id: id,
