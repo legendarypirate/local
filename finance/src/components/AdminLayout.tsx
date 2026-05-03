@@ -5,7 +5,7 @@ import { Layout, Menu, App, Spin, Modal, Dropdown, Avatar, MenuProps } from 'ant
 import {
   DashboardOutlined, UserOutlined, SettingOutlined, TruckOutlined, ShoppingCartOutlined,
   AppstoreAddOutlined, BellOutlined, HomeOutlined, FileTextOutlined, KeyOutlined,
-  LogoutOutlined, BarChartOutlined, ShoppingOutlined
+  LogoutOutlined, BarChartOutlined, ShoppingOutlined, SwapOutlined, InboxOutlined,
 } from '@ant-design/icons';
 import { usePathname, useRouter } from 'next/navigation';
 
@@ -116,6 +116,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { key: '/admin/order', icon: <ShoppingCartOutlined />, label: 'Татан авалт', permission: 'order:view_order' },
     { key: '/admin/region', icon: <AppstoreAddOutlined />, label: 'Бүс', permission: 'region:view_region' },
     { key: '/admin/delivery-zones', icon: <AppstoreAddOutlined />, label: 'Хүргэлтийн бүс зургаар', permission: 'delivery:view_delivery' },
+    { key: '/admin/delivery-address-requests', icon: <SwapOutlined />, label: 'Хаяг солих хүсэлт', permission: 'role:view_role' },
+    { key: '/admin/delivery-not-picked-requests', icon: <InboxOutlined />, label: 'Авч гараагүй хүсэлт', permission: 'role:view_role' },
     { key: '/admin/notification', icon: <BellOutlined />, label: 'Масс мэдэгдэл', permission: 'notification:view_notification' },
     {
       key: 'good',
@@ -134,6 +136,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       permission: 'reports:view_reports',
       children: [
         { key: '/admin/report', icon: <FileTextOutlined />, label: 'Тайлан', permission: 'log:view_log' },
+        { key: '/admin/newreport', icon: <FileTextOutlined />, label: 'Тайлан (шинэ)', permission: 'role:view_role' },
         { key: '/admin/summary', icon: <BarChartOutlined />, label: 'Тайлан жагсаалт', permission: 'reports:view_reports' },
         { key: '/admin/driver-tootsoo', icon: <BarChartOutlined />, label: 'Жолоочийн тооцоо', permission: 'log:view_log' },
 
@@ -180,15 +183,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     } else {
       filteredMenuItems = filteredMenuItems.map((m) => {
         if (m.key === 'report' && m.children && !m.children.some((c) => c.key === '/admin/report')) {
-          return { ...m, children: [...m.children, { key: '/admin/report', icon: <FileTextOutlined />, label: 'Тайлан', permission: undefined } as MenuItemType] };
+          return {
+            ...m,
+            children: [
+              ...m.children,
+              { key: '/admin/report', icon: <FileTextOutlined />, label: 'Тайлан', permission: undefined } as MenuItemType,
+            ],
+          };
         }
         return m;
       });
     }
-    // Customer (role 2): show only "Тайлан" (/admin/report), hide "Тайлан жагсаалт" (/admin/summary)
+    // Customer (role 2): show only "Тайлан" (/admin/report); hide жагсаалт and admin-only newreport
     filteredMenuItems = filteredMenuItems.map((m) => {
       if (m.key === 'report' && m.children) {
-        return { ...m, children: m.children.filter((c) => c.key !== '/admin/summary') };
+        return {
+          ...m,
+          children: m.children.filter(
+            (c) => c.key !== '/admin/summary' && c.key !== '/admin/newreport'
+          ),
+        };
       }
       return m;
     });

@@ -2198,6 +2198,11 @@ export default function DeliveryPage() {
               max-width: 200px;
               white-space: normal;
             }
+            td.merchant-by-status {
+              font-weight: 600;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
             @page {
               size: A4 portrait;
               margin: 10mm 10mm 10mm 10mm;
@@ -2238,6 +2243,19 @@ export default function DeliveryPage() {
             <tbody>
         `);
 
+                    const printMerchantCellStyle = (color: string | undefined): string => {
+                      if (!color || typeof color !== 'string') {
+                        return 'background-color: transparent; color: #111;';
+                      }
+                      const c = color.trim();
+                      if (!/^#[0-9A-Fa-f]{3,8}$/.test(c) && !/^[a-zA-Z]+$/.test(c)) {
+                        return 'background-color: transparent; color: #111;';
+                      }
+                      const dark = new Set(['indigo', 'purple', 'brown', 'red', 'blue', 'green']);
+                      const fg = dark.has(c.toLowerCase()) ? '#fff' : '#111';
+                      return `background-color: ${c}; color: ${fg};`;
+                    };
+
                     rowsWithItems.forEach(row => {
                       // Format dates
                       const createdAt = row.createdAt ? dayjs(row.createdAt).format('YYYY-MM-DD HH:mm') : '-';
@@ -2249,9 +2267,15 @@ export default function DeliveryPage() {
                         ).join(', ')
                         : 'Бараа байхгүй';
 
+                      const merchantStyle = printMerchantCellStyle(row.status_name?.color);
+                      const merchantName = String(row.merchant?.username ?? '-')
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;');
+
                       printWindow.document.write(`
             <tr>
-              <td>${row.merchant?.username ?? '-'}</td>
+              <td class="merchant-by-status" style="${merchantStyle}">${merchantName}</td>
               <td>${row.address}</td>
               <td>${row.phone}</td>
               <td>${row.price?.toLocaleString() ?? '0'}₮</td>

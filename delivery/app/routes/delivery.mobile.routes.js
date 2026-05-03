@@ -20,6 +20,8 @@ module.exports = app => {
 
     // Mark delivery as complete
     router.post("/complete/:id", delivery.completeDelivery);
+    router.post("/:id/address-request", delivery.createAddressChangeRequest);
+    router.post("/:id/not-picked-request", delivery.createNotPickedRequest);
     router.get("/driver/:id/status-2", delivery.findDriverDeliveriesWithStatus);
     router.get("/:deliveryId", delivery.findByDeliverId);
 

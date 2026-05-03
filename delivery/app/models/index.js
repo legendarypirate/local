@@ -47,6 +47,8 @@ db.delivery_items = require("./delivery_item.model.js")(sequelize, Sequelize);
 db.histories = require("./history.model.js")(sequelize, Sequelize);
 db.driver_tootsoos = require("./driver_tootsoo.model.js")(sequelize, Sequelize);
 db.delivery_zones = require("./delivery_zone.model.js")(sequelize, Sequelize);
+db.delivery_address_requests = require("./delivery_address_request.model.js")(sequelize, Sequelize);
+db.delivery_not_picked_requests = require("./delivery_not_picked_request.model.js")(sequelize, Sequelize);
 
 db.role_permissions = require("./role_permission.model.js")(sequelize, Sequelize);
 
@@ -258,6 +260,36 @@ db.users.hasMany(db.deliveries, {
 db.deliveries.belongsTo(db.users, {
   foreignKey: 'driver_id',
   as: 'driver', // this allows delivery.driver to access the User (driver) info
+});
+
+db.deliveries.hasMany(db.delivery_address_requests, {
+  foreignKey: 'delivery_id',
+  as: 'address_requests',
+});
+db.delivery_address_requests.belongsTo(db.deliveries, {
+  foreignKey: 'delivery_id',
+  as: 'delivery',
+});
+db.delivery_address_requests.belongsTo(db.users, {
+  foreignKey: 'requested_by_user_id',
+  as: 'requester',
+});
+db.delivery_address_requests.belongsTo(db.users, {
+  foreignKey: 'new_driver_id',
+  as: 'new_driver',
+});
+
+db.deliveries.hasMany(db.delivery_not_picked_requests, {
+  foreignKey: 'delivery_id',
+  as: 'not_picked_requests',
+});
+db.delivery_not_picked_requests.belongsTo(db.deliveries, {
+  foreignKey: 'delivery_id',
+  as: 'delivery',
+});
+db.delivery_not_picked_requests.belongsTo(db.users, {
+  foreignKey: 'requested_by_user_id',
+  as: 'requester',
 });
 
 // DriverTootsoo (driver_tootsoos) belongs to User (driver)

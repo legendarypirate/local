@@ -199,29 +199,44 @@ exports.update = (req, res) => {
     });
 };
 // Delete a User with the specified id in the request
-exports.delete = (req, res) => {
-  const id = req.params.id;
+exports.delete = async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id || Number.isNaN(id)) {
+    return res.status(400).json({ success: false, message: "Invalid user id" });
+  }
 
-  User.destroy({ where: { id: id } })
-    .then(num => {
-      if (num === 1) {
-        res.json({
-          success: true,
-          message: "User was deleted successfully!"
-        });
-      } else {
-        res.status(404).json({
-          success: false,
-          message: `Cannot delete User with id=${id}. Maybe User was not found!`
-        });
-      }
-    })
-    .catch(err => {
-      res.status(500).json({
-        success: false,
-        message: "Could not delete User with id=" + id
+  try {
+    const num = await User.destroy({ where: { id } });
+    if (num === 1) {
+      return res.json({
+        success: true,
+        message: "User was deleted successfully!",
       });
+    }
+    return res.status(404).json({
+      success: false,
+      message: `Cannot delete User with id=${id}. Maybe User was not found!`,
     });
+  } catch (err) {
+    const errno = err.parent && err.parent.errno;
+    const isFk =
+      err.name === "SequelizeForeignKeyConstraintError" ||
+      errno === 1451 ||
+      errno === 1217 ||
+      (typeof err.message === "string" && err.message.toLowerCase().includes("foreign key"));
+    if (isFk) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Энэ хэрэглэгчтэй холбоотой хүргэлт/захиалга байгаа тул устгах боломжгүй. Эхлээд холбоотой өгөгдлийг цэвэрлэнэ үү.",
+      });
+    }
+    console.error("User delete error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Could not delete User with id=" + id,
+    });
+  }
 };
 
 

@@ -10,7 +10,7 @@ import {
   Input,
   Select,
   Modal,
-  message,
+  App,
 } from 'antd';
 import type { TableColumnsType } from 'antd';
 import {
@@ -21,7 +21,16 @@ import {
 } from '@ant-design/icons';
 
 const { Option } = Select;
-const { confirm } = Modal;
+
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+
+function apiHeaders(): HeadersInit {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
 
 interface User {
   id: number;
@@ -38,6 +47,7 @@ interface User {
 }
 
 export default function UsersPage() {
+  const { modal, message } = App.useApp();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -55,7 +65,7 @@ export default function UsersPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user`);
+      const res = await fetch(`${apiUrl}/api/user`, { headers: apiHeaders() });
       const result = await res.json();
       if (result.success) {
         // Sort by ID in descending order
@@ -97,26 +107,36 @@ export default function UsersPage() {
   );
 
   const handleDelete = (record: User) => {
-    confirm({
+    modal.confirm({
       title: 'Устгахдаа итгэлтэй байна уу?',
       icon: <ExclamationCircleOutlined />,
       content: `"${record.username}" устгах`,
       okText: 'Тийм',
       okType: 'danger',
       cancelText: 'Үгүй',
+      centered: true,
       onOk: async () => {
         try {
-          const res = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/user/${record.id}`,
-            { method: 'DELETE' }
-          );
-          const json = await res.json();
-          if (!json.success) throw new Error(json.message);
+          const res = await fetch(`${apiUrl}/api/user/${record.id}`, {
+            method: 'DELETE',
+            headers: apiHeaders(),
+          });
+          const text = await res.text();
+          let json: { success?: boolean; message?: string } = {};
+          try {
+            json = text ? (JSON.parse(text) as typeof json) : {};
+          } catch {
+            throw new Error(text || res.statusText || 'Invalid response');
+          }
+          if (!res.ok || !json.success) {
+            throw new Error(json.message || `HTTP ${res.status}`);
+          }
           message.success('Амжилттай устгалаа');
-          fetchData();
-        } catch (err) {
-          console.error(err);
-          message.error('Устгахад алдаа гарлаа');
+          await fetchData();
+        } catch (e) {
+          const errMsg = e instanceof Error ? e.message : 'Устгахад алдаа гарлаа';
+          message.error(errMsg);
+          return Promise.reject(e);
         }
       },
     });
@@ -135,9 +155,9 @@ export default function UsersPage() {
     try {
       const values = await form.validateFields();
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user`, {
+      const response = await fetch(`${apiUrl}/api/user`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: apiHeaders(),
         body: JSON.stringify(values),
       });
 
@@ -162,14 +182,11 @@ export default function UsersPage() {
     try {
       const values = await editForm.validateFields();
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/user/${editingUser.id}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(values),
-        }
-      );
+      const response = await fetch(`${apiUrl}/api/user/${editingUser.id}`, {
+        method: 'PUT',
+        headers: apiHeaders(),
+        body: JSON.stringify(values),
+      });
 
       const result = await response.json();
 

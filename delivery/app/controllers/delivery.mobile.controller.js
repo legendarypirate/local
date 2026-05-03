@@ -6,6 +6,8 @@ const Op = db.Sequelize.Op;
 const { fn, col, literal } = db.Sequelize;
 const DeliveryItem = db.delivery_items;
 const Good = db.goods;
+const DeliveryAddressRequest = db.delivery_address_requests;
+const DeliveryNotPickedRequest = db.delivery_not_picked_requests;
 const moment = require("moment-timezone"); // <-- Add this line
 
 exports.findDriverDeliveriesWithStatus = (req, res) => {
@@ -322,6 +324,17 @@ exports.completeDelivery = async (req, res) => {
     });
   }
 
+  const statusNum = parseInt(status, 10);
+  if (Number.isNaN(statusNum)) {
+    return res.status(400).send({ success: false, message: "Invalid status." });
+  }
+  if (statusNum === 10) {
+    return res.status(400).send({
+      success: false,
+      message: "Төлөв 10 зөвхөн 'Авч гараагүй' хүсэлтийг админ зөвшөөрснөөр тохируулна.",
+    });
+  }
+
   const t = await db.sequelize.transaction();
 
   try {
@@ -337,7 +350,7 @@ exports.completeDelivery = async (req, res) => {
 
     // 🔹 Prepare update fields
     const updateData = {
-      status: parseInt(status, 10),
+      status: statusNum,
       delivered_at: new Date(), // ✅ Always set delivered_at to current time
     };
 
@@ -350,7 +363,6 @@ exports.completeDelivery = async (req, res) => {
     await delivery.update(updateData, { transaction: t });
 
     // ✅ If declined (status 5) or status 7, restore stock
-    const statusNum = parseInt(status, 10);
     if (statusNum === 5 || statusNum === 7) {
       const items = await DeliveryItem.findAll({
         where: { delivery_id: id },
@@ -371,7 +383,7 @@ exports.completeDelivery = async (req, res) => {
         merchant_id: delivery.merchant_id,
         delivery_id: delivery.id,
         driver_id: delivery.driver_id,
-        status: parseInt(status, 10),
+        status: statusNum,
       },
       { transaction: t }
     );
@@ -380,7 +392,7 @@ exports.completeDelivery = async (req, res) => {
 
     res.send({
       success: true,
-      data: { message: `Delivery status updated to ${status} and history recorded.` },
+      data: { message: `Delivery status updated to ${statusNum} and history recorded.` },
     });
   } catch (err) {
     await t.rollback();
@@ -557,4 +569,113 @@ exports.findWithStatusCustomer = (req, res) => {
       message: err.message || "Some error occurred while retrieving deliveries."
     });
   });
+};
+
+exports.createAddressChangeRequest = async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { new_address, driver_user_id } = req.body;
+  const driverId = parseInt(driver_user_id, 10);
+
+  if (!id || Number.isNaN(id)) {
+    return res.status(400).json({ success: false, message: "Invalid delivery id" });
+  }
+  if (!driverId || Number.isNaN(driverId)) {
+    return res.status(400).json({ success: false, message: "driver_user_id required" });
+  }
+  const addr = typeof new_address === "string" ? new_address.trim() : "";
+  if (!addr) {
+    return res.status(400).json({ success: false, message: "new_address required" });
+  }
+
+  try {
+    const delivery = await Delivery.findByPk(id);
+    if (!delivery) {
+      return res.status(404).json({ success: false, message: "Delivery not found" });
+    }
+    if (delivery.is_deleted) {
+      return res.status(400).json({ success: false, message: "Delivery deleted" });
+    }
+    if (delivery.driver_id !== driverId) {
+      return res.status(403).json({ success: false, message: "Not assigned to this driver" });
+    }
+
+    const existing = await DeliveryAddressRequest.findOne({
+      where: { delivery_id: id, status: "pending" },
+    });
+    if (existing) {
+      return res.status(400).json({ success: false, message: "Pending request already exists" });
+    }
+
+    const prev = delivery.address != null ? String(delivery.address) : "";
+    if (addr === prev.trim()) {
+      return res.status(400).json({ success: false, message: "Address unchanged" });
+    }
+
+    await DeliveryAddressRequest.create({
+      delivery_id: id,
+      requested_by_user_id: driverId,
+      previous_address: prev,
+      new_address: addr,
+      status: "pending",
+    });
+
+    res.json({ success: true, message: "Хүсэлт илгээгдлээ" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message || "Server error" });
+  }
+};
+
+exports.createNotPickedRequest = async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { driver_user_id, driver_comment } = req.body;
+  const driverId = parseInt(driver_user_id, 10);
+
+  if (!id || Number.isNaN(id)) {
+    return res.status(400).json({ success: false, message: "Invalid delivery id" });
+  }
+  if (!driverId || Number.isNaN(driverId)) {
+    return res.status(400).json({ success: false, message: "driver_user_id required" });
+  }
+
+  const comment =
+    typeof driver_comment === "string" ? driver_comment.trim() : "";
+
+  try {
+    const delivery = await Delivery.findByPk(id);
+    if (!delivery) {
+      return res.status(404).json({ success: false, message: "Delivery not found" });
+    }
+    if (delivery.is_deleted) {
+      return res.status(400).json({ success: false, message: "Delivery deleted" });
+    }
+    if (delivery.driver_id !== driverId) {
+      return res.status(403).json({ success: false, message: "Not assigned to this driver" });
+    }
+    if (delivery.status !== 2) {
+      return res.status(400).json({
+        success: false,
+        message: "Зөвхөн жолоочид хуваарилсан (төлөв 2) үед хүсэлт илгээнэ",
+      });
+    }
+
+    const existing = await DeliveryNotPickedRequest.findOne({
+      where: { delivery_id: id, status: "pending" },
+    });
+    if (existing) {
+      return res.status(400).json({ success: false, message: "Хүлээгдэж буй хүсэлт аль хэдийн байна" });
+    }
+
+    await DeliveryNotPickedRequest.create({
+      delivery_id: id,
+      requested_by_user_id: driverId,
+      driver_comment: comment || null,
+      status: "pending",
+    });
+
+    res.json({ success: true, message: "Хүсэлт илгээгдлээ — админ зөвшөөрөх хүртэл төлөв 2 хэвээр" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message || "Server error" });
+  }
 };
