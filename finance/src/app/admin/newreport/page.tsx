@@ -34,13 +34,9 @@ function isStatus3(d: Delivery): boolean {
   return d.status === 3 || d.status === '3';
 }
 
-function isStatus5Like(d: Delivery): boolean {
-  return (
-    d.status === 5 ||
-    d.status === '5' ||
-    d.status === 7 ||
-    d.status === '7'
-  );
+/** «Хаягаар очсон» — зөвхөн төлөв 7 (5 нь татгалзсан гэх мэт, энд тоологдохгүй). */
+function isStatus7AddressVisit(d: Delivery): boolean {
+  return d.status === 7 || d.status === '7';
 }
 
 function getStoredUser(): { id?: number; role?: number; role_id?: number; username?: string } | null {
@@ -167,12 +163,12 @@ export default function NewReportPage() {
         fetchReportOrders(filters),
       ]);
 
-      const filteredDeliveries = deliveries.filter((d) => isStatus3(d) || isStatus5Like(d));
+      const filteredDeliveries = deliveries.filter((d) => isStatus3(d) || isStatus7AddressVisit(d));
       const status3Deliveries = filteredDeliveries.filter(isStatus3);
-      const status5Deliveries = filteredDeliveries.filter(isStatus5Like);
+      const addressVisitDeliveries = filteredDeliveries.filter(isStatus7AddressVisit);
 
       let deliveriesToProcess = status3Deliveries;
-      let status5DeliveriesToProcess = status5Deliveries;
+      let addressVisitDeliveriesToProcess = addressVisitDeliveries;
 
       if (!isCustomer && (reportType === 'now' || reportType === 'later')) {
         const merchantGroups: Record<string, Delivery[]> = {};
@@ -214,7 +210,7 @@ export default function NewReportPage() {
           })
         );
 
-        status5DeliveriesToProcess = status5Deliveries.filter((d) => {
+        addressVisitDeliveriesToProcess = addressVisitDeliveries.filter((d) => {
           const merchantName = d.merchant?.username || 'Unknown Merchant';
           return filteredMerchantNames.has(merchantName);
         });
@@ -223,7 +219,7 @@ export default function NewReportPage() {
       const typeToUse: ReportType = isCustomer ? 'now' : reportType;
       const groupedData = groupDeliveriesByType(deliveriesToProcess, typeToUse, isCustomer);
       const groupedStatus5Data = groupDeliveriesByType(
-        status5DeliveriesToProcess,
+        addressVisitDeliveriesToProcess,
         typeToUse,
         isCustomer
       );

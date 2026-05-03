@@ -19,7 +19,7 @@ function getAuthHeaders(): Record<string, string> {
   };
 }
 
-/** Delivered (3) and address-visit style rows (5, 7) for salary breakdown */
+/** Delivered (3) and «Хаягаар очсон» (status 7 only; not declined status 5) */
 export async function fetchReportDeliveries(filters: {
   startDate?: string;
   endDate?: string;
@@ -34,7 +34,7 @@ export async function fetchReportDeliveries(filters: {
   if (filters.merchantId) url += `&merchant_id=${filters.merchantId}`;
   if (filters.startDate) url += `&start_date=${filters.startDate}`;
   if (filters.endDate) url += `&end_date=${filters.endDate}`;
-  url += `&status_ids=3,5,7`;
+  url += `&status_ids=3,7`;
 
   const response = await fetch(url, { headers: getAuthHeaders() });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);

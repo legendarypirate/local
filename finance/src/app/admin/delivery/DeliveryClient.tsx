@@ -4,7 +4,7 @@ import React, { useState, useMemo, useRef, useEffect, Suspense } from 'react';
 import { Table, Button, Space, Input, DatePicker, Drawer, Form, Select, Tag, Modal, App, Checkbox, message, InputNumber, List, Row, Col, Tooltip } from 'antd';
 import type { CheckboxProps } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { EditOutlined, DeleteOutlined, PlusOutlined, EyeOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, PlusOutlined, HistoryOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
@@ -343,31 +343,37 @@ export default function DeliveryPage() {
         const isNewDelivery = statusValue === 1 || record.status_name?.status === 'шинэ';
 
         return (
-          <Space>
-            <Button
-              type="link"
-              icon={<EditOutlined />}
-              onClick={() => handleEditClick(record)}
-            >
-              Edit
-            </Button>
-            <Button
-              type="link"
-              icon={<EyeOutlined />}
-              onClick={() => handleViewHistory(record.id)}
-              loading={historyLoading}
-            >
-              History
-            </Button>
-            {isNewDelivery && (
+          <Space size="small">
+            <Tooltip title="Засах">
               <Button
-                type="link"
-                danger
-                icon={<DeleteOutlined />}
-                onClick={() => handleDeleteSingle(record.id)}
-              >
-                Delete
-              </Button>
+                type="text"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => handleEditClick(record)}
+                aria-label="Засах"
+              />
+            </Tooltip>
+            <Tooltip title="Түүх">
+              <Button
+                type="text"
+                size="small"
+                icon={<HistoryOutlined />}
+                onClick={() => handleViewHistory(record.id)}
+                loading={historyLoading}
+                aria-label="Түүх"
+              />
+            </Tooltip>
+            {isNewDelivery && (
+              <Tooltip title="Устгах">
+                <Button
+                  type="text"
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => handleDeleteSingle(record.id)}
+                  aria-label="Устгах"
+                />
+              </Tooltip>
             )}
           </Space>
         );
@@ -384,15 +390,17 @@ export default function DeliveryPage() {
       const canEdit = statusValue === 1 || record.status_name?.status === 'шинэ';
 
       return (
-        <Space>
+        <Space size="small">
           {canEdit && (
-            <Button
-              type="link"
-              icon={<EditOutlined />}
-              onClick={() => handleEditClick(record)}
-            >
-              Edit
-            </Button>
+            <Tooltip title="Засах">
+              <Button
+                type="text"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => handleEditClick(record)}
+                aria-label="Засах"
+              />
+            </Tooltip>
           )}
         </Space>
       );
@@ -2200,6 +2208,7 @@ export default function DeliveryPage() {
             }
             td.merchant-by-status {
               font-weight: 600;
+              background-color: transparent !important;
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
             }
@@ -2243,17 +2252,16 @@ export default function DeliveryPage() {
             <tbody>
         `);
 
+                    /** Дэлгүүрийн нэрийг төлөвийн өнгөөр текстээр — эсгүүний дэвсгэр өнгөгүй (хэвлэхэд илүү тод). */
                     const printMerchantCellStyle = (color: string | undefined): string => {
                       if (!color || typeof color !== 'string') {
-                        return 'background-color: transparent; color: #111;';
+                        return 'color: #111; background-color: transparent;';
                       }
                       const c = color.trim();
                       if (!/^#[0-9A-Fa-f]{3,8}$/.test(c) && !/^[a-zA-Z]+$/.test(c)) {
-                        return 'background-color: transparent; color: #111;';
+                        return 'color: #111; background-color: transparent;';
                       }
-                      const dark = new Set(['indigo', 'purple', 'brown', 'red', 'blue', 'green']);
-                      const fg = dark.has(c.toLowerCase()) ? '#fff' : '#111';
-                      return `background-color: ${c}; color: ${fg};`;
+                      return `color: ${c}; background-color: transparent;`;
                     };
 
                     rowsWithItems.forEach(row => {

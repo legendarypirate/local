@@ -24,8 +24,12 @@ declare global {
   interface Window {
     google: typeof google;
     initDeliveryZonesMap: () => void;
+    /** Google Maps JS дуудаж буй түлхүүр/төсөл татгалзсан үед (жишээ нь ProjectDeniedMapError). */
+    gm_authFailure?: () => void;
   }
 }
+
+const MAP_INIT_RAF_MAX = 90; // ~1.5s: callback/Strict Mode — DOM холбогдохыг хүлээнэ
 
 export default function DeliveryZonesPage() {
   const { message: msg } = App.useApp();
@@ -33,12 +37,16 @@ export default function DeliveryZonesPage() {
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const drawingManagerRef = useRef<google.maps.drawing.DrawingManager | null>(null);
   const polygonsRef = useRef<google.maps.Polygon[]>([]);
+  const mapInitRafAttempts = useRef(0);
 
   const mapEnabled = Boolean(API_KEY);
 
   const [zones, setZones] = useState<DeliveryZone[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mapInitError, setMapInitError] = useState<string | null>(null);
+  /** Түлхүүр татгалзсан — React-ийн map div-ийг нуугаад «Oops» overlay харагдуулахгүй. */
+  const [mapBlockedByAuth, setMapBlockedByAuth] = useState(false);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [pendingPath, setPendingPath] = useState<{ lat: number; lng: number }[]>([]);
   const [form] = Form.useForm();
@@ -103,54 +111,124 @@ export default function DeliveryZonesPage() {
       return;
     }
 
-    window.initDeliveryZonesMap = () => {
-      if (!mapRef.current || !window.google) return;
-      const map = new window.google.maps.Map(mapRef.current, {
-        center: DEFAULT_CENTER,
-        zoom: 12,
-        mapTypeId: 'roadmap',
-      });
-      mapInstanceRef.current = map;
+    let cancelled = false;
+    setMapInitError(null);
+    setMapBlockedByAuth(false);
 
-      const drawingManager = new window.google.maps.drawing.DrawingManager({
-        drawingMode: window.google.maps.drawing.OverlayType.POLYGON,
-        drawingControl: true,
-        drawingControlOptions: {
-          position: window.google.maps.ControlPosition.TOP_CENTER,
-          drawingModes: [window.google.maps.drawing.OverlayType.POLYGON],
-        },
-      });
-      drawingManager.setMap(map);
-      drawingManagerRef.current = drawingManager;
-
-      window.google.maps.event.addListener(drawingManager, 'polygoncomplete', (polygon: google.maps.Polygon) => {
-        const path = polygon.getPath();
-        const arr: { lat: number; lng: number }[] = [];
-        for (let i = 0; i < path.getLength(); i++) {
-          const p = path.getAt(i);
-          arr.push({ lat: p.lat(), lng: p.lng() });
-        }
-        polygon.setMap(null);
-        setPendingPath(arr);
-        setSaveModalOpen(true);
-        form.resetFields();
-      });
-
+    const priorGmAuthFailure = window.gm_authFailure;
+    window.gm_authFailure = () => {
+      if (cancelled) return;
+      const detail =
+        'Google Maps ачаалагдахгүй (ProjectDeniedMapError эсвэл түлхүүр татгалзсан). Google Cloud төсөлд Billing холбогдсон эсэх, Maps JavaScript API идэвхтэй эсэх, түлхүүрийн HTTP referrer одоогийн домэйнд тохирсон эсэхийг шалгана уу.';
+      console.error('[delivery-zones] gm_authFailure', detail);
+      setMapInitError(detail);
+      setMapBlockedByAuth(true);
       setLoading(false);
+      polygonsRef.current.forEach((p) => p.setMap(null));
+      polygonsRef.current = [];
+      drawingManagerRef.current?.setMap(null);
+      drawingManagerRef.current = null;
+      mapInstanceRef.current = null;
     };
 
+    const buildMap = () => {
+      if (cancelled || !window.google?.maps?.drawing) return;
+      const el = mapRef.current;
+      if (!el || !el.isConnected || !(el instanceof HTMLElement)) {
+        mapInitRafAttempts.current += 1;
+        if (mapInitRafAttempts.current > MAP_INIT_RAF_MAX) {
+          const err =
+            'Газрын зургийн DOM элемент бэлэн болоогүй тул IntersectionObserver алдаа гарч болно. Хуудсыг дахин ачаална уу.';
+          console.error('[delivery-zones]', err);
+          setMapInitError(err);
+          setLoading(false);
+          return;
+        }
+        requestAnimationFrame(buildMap);
+        return;
+      }
+      mapInitRafAttempts.current = 0;
+
+      try {
+        const map = new window.google.maps.Map(el, {
+          center: DEFAULT_CENTER,
+          zoom: 12,
+          mapTypeId: 'roadmap',
+        });
+        mapInstanceRef.current = map;
+
+        const drawingManager = new window.google.maps.drawing.DrawingManager({
+          drawingMode: window.google.maps.drawing.OverlayType.POLYGON,
+          drawingControl: true,
+          drawingControlOptions: {
+            position: window.google.maps.ControlPosition.TOP_CENTER,
+            drawingModes: [window.google.maps.drawing.OverlayType.POLYGON],
+          },
+        });
+        drawingManager.setMap(map);
+        drawingManagerRef.current = drawingManager;
+
+        window.google.maps.event.addListener(drawingManager, 'polygoncomplete', (polygon: google.maps.Polygon) => {
+          const path = polygon.getPath();
+          const arr: { lat: number; lng: number }[] = [];
+          for (let i = 0; i < path.getLength(); i++) {
+            const p = path.getAt(i);
+            arr.push({ lat: p.lat(), lng: p.lng() });
+          }
+          polygon.setMap(null);
+          setPendingPath(arr);
+          setSaveModalOpen(true);
+          form.resetFields();
+        });
+
+        setLoading(false);
+      } catch (e) {
+        console.error('[delivery-zones] Map / DrawingManager init failed', e);
+        setMapInitError(e instanceof Error ? e.message : 'Газрын зураг эхлүүлэхэд алдаа');
+        setLoading(false);
+      }
+    };
+
+    window.initDeliveryZonesMap = () => {
+      if (cancelled) return;
+      mapInitRafAttempts.current = 0;
+      buildMap();
+    };
+
+    const scriptSelector = 'script[data-finance-delivery-zones-maps]';
+
     if (window.google?.maps?.drawing) {
-      window.initDeliveryZonesMap();
-      return;
+      queueMicrotask(() => {
+        if (!cancelled) window.initDeliveryZonesMap();
+      });
+    } else if (document.querySelector(scriptSelector)) {
+      const waitLoaded = () => {
+        if (cancelled) return;
+        if (window.google?.maps?.drawing) {
+          window.initDeliveryZonesMap();
+        } else {
+          requestAnimationFrame(waitLoaded);
+        }
+      };
+      waitLoaded();
+    } else {
+      const script = document.createElement('script');
+      script.setAttribute('data-finance-delivery-zones-maps', '1');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&libraries=drawing&callback=initDeliveryZonesMap`;
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
     }
 
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&libraries=drawing&callback=initDeliveryZonesMap`;
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
     return () => {
-      script.remove();
+      cancelled = true;
+      window.initDeliveryZonesMap = () => {};
+      window.gm_authFailure = priorGmAuthFailure;
+      polygonsRef.current.forEach((p) => p.setMap(null));
+      polygonsRef.current = [];
+      drawingManagerRef.current?.setMap(null);
+      drawingManagerRef.current = null;
+      mapInstanceRef.current = null;
     };
   }, [mapEnabled]);
 
@@ -249,17 +327,71 @@ export default function DeliveryZonesPage() {
   return (
     <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Card title="Хүргэлтийн бүс зургаар">
+        {mapInitError ? (
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={mapInitError}
+            description={
+              mapBlockedByAuth ? (
+                <Typography.Link
+                  href="https://developers.google.com/maps/documentation/javascript/error-messages#project-denied-map-error"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  ProjectDeniedMapError — алдааны тайлбар (Google)
+                </Typography.Link>
+              ) : undefined
+            }
+          />
+        ) : null}
         <p style={{ color: '#666', marginBottom: 16 }}>
           Зургийн дээр полигон зурж, бүс бүрт жолооч онооно. Шинэ захиалга үүсэхэд хаягийн координат (lat/lng) аль бүсэд
           байгааг шалгаад тухайн жолооч автоматаар оноогдоно.
         </p>
+        <p style={{ color: '#888', marginBottom: 16, fontSize: 13 }}>
+          Хэрэв консолд <Typography.Text code>ProjectDeniedMapError</Typography.Text> гарвал төсөлд billing холбогдсон
+          эсэх, <Typography.Text code>Maps JavaScript API</Typography.Text> идэвхтэй эсэх, түлхүүрийн referrer-ийг
+          шалгана уу —{' '}
+          <Typography.Link
+            href="https://developers.google.com/maps/documentation/javascript/error-messages#project-denied-map-error"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Google — ProjectDeniedMapError
+          </Typography.Link>
+          . <Typography.Text type="secondary">Drawing library</Typography.Text> deprecation нь зөвхөн анхааруулга; одоогоор
+          полигон зурахад ашиглана.
+        </p>
         <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 400px', minHeight: 480, position: 'relative' }}>
-            <div
-              ref={mapRef}
-              style={{ width: '100%', height: 480, borderRadius: 8, background: '#e8eaf0' }}
-            />
-            {loading && (
+            {mapBlockedByAuth ? (
+              <div
+                style={{
+                  width: '100%',
+                  height: 480,
+                  borderRadius: 8,
+                  background: '#f5f5f5',
+                  border: '1px dashed #d9d9d9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 24,
+                  textAlign: 'center',
+                  color: '#666',
+                  fontSize: 14,
+                }}
+              >
+                Газрын зураг идэвхжээгүй — доорх алдааны мэдээллийг засаад хуудсыг дахин ачаална уу.
+              </div>
+            ) : (
+              <div
+                ref={mapRef}
+                style={{ width: '100%', height: 480, borderRadius: 8, background: '#e8eaf0' }}
+              />
+            )}
+            {loading && !mapBlockedByAuth && (
               <div
                 style={{
                   position: 'absolute',
