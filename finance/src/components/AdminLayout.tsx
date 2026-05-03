@@ -8,6 +8,7 @@ import {
   LogoutOutlined, BarChartOutlined, ShoppingOutlined, SwapOutlined, InboxOutlined,
 } from '@ant-design/icons';
 import { usePathname, useRouter } from 'next/navigation';
+import { isDeliveryZonesDevMode } from '@/config/deliveryZonesDev';
 
 const { Header, Sider, Content } = Layout;
 
@@ -115,7 +116,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { key: '/admin/driver', icon: <UserOutlined />, label: 'Жолооч', permission: 'log:view_log' },
     { key: '/admin/order', icon: <ShoppingCartOutlined />, label: 'Татан авалт', permission: 'order:view_order' },
     { key: '/admin/region', icon: <AppstoreAddOutlined />, label: 'Бүс', permission: 'region:view_region' },
-    { key: '/admin/delivery-zones', icon: <AppstoreAddOutlined />, label: 'Хүргэлтийн бүс зургаар', permission: 'delivery:view_delivery' },
+    ...(isDeliveryZonesDevMode()
+      ? ([
+          {
+            key: '/admin/delivery-zones',
+            icon: <AppstoreAddOutlined />,
+            label: 'Хүргэлтийн бүс (Google, dev)',
+            permission: 'delivery:view_delivery',
+          },
+        ] as MenuItemType[])
+      : []),
     { key: '/admin/delivery-address-requests', icon: <SwapOutlined />, label: 'Хаяг солих хүсэлт', permission: 'role:view_role' },
     { key: '/admin/delivery-not-picked-requests', icon: <InboxOutlined />, label: 'Авч гараагүй хүсэлт', permission: 'role:view_role' },
     { key: '/admin/notification', icon: <BellOutlined />, label: 'Масс мэдэгдэл', permission: 'notification:view_notification' },

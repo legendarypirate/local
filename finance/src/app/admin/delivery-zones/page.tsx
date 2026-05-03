@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Card, Button, Select, List, message, Modal, Form, Input, App } from 'antd';
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { Card, Button, Select, List, Modal, Form, Input, App, Alert, Typography } from 'antd';
+import { DeleteOutlined } from '@ant-design/icons';
+import { isDeliveryZonesDevMode } from '@/config/deliveryZonesDev';
 
 const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 const DEFAULT_CENTER = { lat: 47.9192, lng: 106.9176 }; // Ulaanbaatar
@@ -33,6 +34,9 @@ export default function DeliveryZonesPage() {
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const drawingManagerRef = useRef<google.maps.drawing.DrawingManager | null>(null);
   const polygonsRef = useRef<google.maps.Polygon[]>([]);
+
+  const devMode = isDeliveryZonesDevMode();
+  const mapEnabled = devMode && Boolean(API_KEY);
 
   const [zones, setZones] = useState<DeliveryZone[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -90,13 +94,16 @@ export default function DeliveryZonesPage() {
   }, [zones]);
 
   useEffect(() => {
-    document.title = 'Хүргэлтийн бүс зургаар';
+    document.title = 'Хүргэлтийн бүс (dev)';
     fetchZones();
     fetchDrivers();
   }, [fetchZones, fetchDrivers]);
 
   useEffect(() => {
-    if (!API_KEY || typeof window === 'undefined') return;
+    if (!mapEnabled || typeof window === 'undefined') {
+      setLoading(false);
+      return;
+    }
 
     window.initDeliveryZonesMap = () => {
       if (!mapRef.current || !window.google) return;
@@ -112,9 +119,7 @@ export default function DeliveryZonesPage() {
         drawingControl: true,
         drawingControlOptions: {
           position: window.google.maps.ControlPosition.TOP_CENTER,
-          drawingModes: [
-            window.google.maps.drawing.OverlayType.POLYGON,
-          ],
+          drawingModes: [window.google.maps.drawing.OverlayType.POLYGON],
         },
       });
       drawingManager.setMap(map);
@@ -149,13 +154,13 @@ export default function DeliveryZonesPage() {
     return () => {
       script.remove();
     };
-  }, []);
+  }, [mapEnabled]);
 
   useEffect(() => {
-    if (mapInstanceRef.current && zones.length >= 0) {
+    if (mapInstanceRef.current && zones.length >= 0 && mapEnabled) {
       drawZonesOnMap(mapInstanceRef.current);
     }
-  }, [zones, drawZonesOnMap]);
+  }, [zones, drawZonesOnMap, mapEnabled]);
 
   const handleSaveZone = async () => {
     try {
@@ -203,21 +208,101 @@ export default function DeliveryZonesPage() {
     }
   };
 
+  if (!devMode) {
+    return (
+      <div style={{ padding: 24 }}>
+        <Alert
+          type="warning"
+          showIcon
+          message="Хөгжүүлэлтийн горимд л нээгдэнэ"
+          description={
+            <>
+              Энэ хуудас Google Maps API түлхүүр шаарддаг тул production дээр нууцад барьдаг. Нээхийн тулд орчинд{' '}
+              <Typography.Text code>NEXT_PUBLIC_DELIVERY_ZONES_DEV=true</Typography.Text> тохируулж дахин build хийнэ
+              үү (эсвэл <Typography.Text code>next dev</Typography.Text> ашиглана).
+            </>
+          }
+        />
+      </div>
+    );
+  }
+
+  if (!API_KEY) {
+    return (
+      <div style={{ padding: 24 }}>
+        <Alert
+          type="error"
+          showIcon
+          message="Google Maps API түлхүүр байхгүй"
+          description={
+            <>
+              <Typography.Paragraph>
+                .env.local эсвэл deploy орчинд{' '}
+                <Typography.Text code>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</Typography.Text> нэмнэ үү. Google Cloud Console
+                дээр <strong>Maps JavaScript API</strong> болон зураг зурахын хувьд <strong>Drawing</strong> library
+                идэвхжүүлнэ.
+              </Typography.Paragraph>
+              <Typography.Link href="https://console.cloud.google.com/google/maps-apis" target="_blank" rel="noreferrer">
+                Google Maps API — console
+              </Typography.Link>
+            </>
+          }
+        />
+        <Card title="Бүсүүдийн жагсаалт (зураггүй)" style={{ marginTop: 16 }}>
+          <List
+            dataSource={zones}
+            renderItem={(item) => (
+              <List.Item>
+                <div>
+                  <div>{item.name}</div>
+                  <div style={{ fontSize: 12, color: '#666' }}>
+                    {item.driver?.username ?? `Driver #${item.driver_id}`}
+                  </div>
+                </div>
+              </List.Item>
+            )}
+          />
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <Card title="Хүргэлтийн бүс зургаар">
+      <Alert
+        type="info"
+        showIcon
+        closable
+        message="Developer mode"
+        description="Зөвхөн хөгжүүлэгчийн горим (delivery zones + Google Map). Production дээр идэвхжүүлэхгүй байхыг зөвлөж байна."
+        style={{ marginBottom: 0 }}
+      />
+      <Card title="Хүргэлтийн бүс зургаар (Google)">
         <p style={{ color: '#666', marginBottom: 16 }}>
-          Зургийн дээр полигон зурж, бүс бүрт жолооч онооно. Шинэ захиалга үүсэхэд хаягийн координат (lat/lng) аль бүсэд байгааг шалгаад тухайн жолооч автоматаар оноогдоно.
+          Зургийн дээр полигон зурж, бүс бүрт жолооч онооно. Шинэ захиалга үүсэхэд хаягийн координат (lat/lng) аль бүсэд
+          байгааг шалгаад тухайн жолооч автоматаар оноогдоно.
         </p>
         <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 400px', minHeight: 480 }}>
+          <div style={{ flex: '1 1 400px', minHeight: 480, position: 'relative' }}>
             <div
               ref={mapRef}
-              style={{ width: '100%', height: 480, borderRadius: 8, background: '#f0f0f0' }}
+              style={{ width: '100%', height: 480, borderRadius: 8, background: '#e8eaf0' }}
             />
             {loading && (
-              <div style={{ position: 'absolute', top: 100, left: '50%', transform: 'translateX(-50%)' }}>
-                Газрын зург ачааллаж байна...
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(255,255,255,0.75)',
+                  borderRadius: 8,
+                  fontSize: 14,
+                  color: '#555',
+                }}
+              >
+                Газрын зураг ачааллаж байна...
               </div>
             )}
           </div>
