@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Card, Button, Select, List, Modal, Form, Input, App, Alert, Typography } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
-import { isDeliveryZonesDevMode } from '@/config/deliveryZonesDev';
 
 const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 const DEFAULT_CENTER = { lat: 47.9192, lng: 106.9176 }; // Ulaanbaatar
@@ -35,8 +34,7 @@ export default function DeliveryZonesPage() {
   const drawingManagerRef = useRef<google.maps.drawing.DrawingManager | null>(null);
   const polygonsRef = useRef<google.maps.Polygon[]>([]);
 
-  const devMode = isDeliveryZonesDevMode();
-  const mapEnabled = devMode && Boolean(API_KEY);
+  const mapEnabled = Boolean(API_KEY);
 
   const [zones, setZones] = useState<DeliveryZone[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -94,7 +92,7 @@ export default function DeliveryZonesPage() {
   }, [zones]);
 
   useEffect(() => {
-    document.title = 'Хүргэлтийн бүс (dev)';
+    document.title = 'Хүргэлтийн бүс зургаар';
     fetchZones();
     fetchDrivers();
   }, [fetchZones, fetchDrivers]);
@@ -208,25 +206,6 @@ export default function DeliveryZonesPage() {
     }
   };
 
-  if (!devMode) {
-    return (
-      <div style={{ padding: 24 }}>
-        <Alert
-          type="warning"
-          showIcon
-          message="Хөгжүүлэлтийн горимд л нээгдэнэ"
-          description={
-            <>
-              Энэ хуудас Google Maps API түлхүүр шаарддаг тул production дээр нууцад барьдаг. Нээхийн тулд орчинд{' '}
-              <Typography.Text code>NEXT_PUBLIC_DELIVERY_ZONES_DEV=true</Typography.Text> тохируулж дахин build хийнэ
-              үү (эсвэл <Typography.Text code>next dev</Typography.Text> ашиглана).
-            </>
-          }
-        />
-      </div>
-    );
-  }
-
   if (!API_KEY) {
     return (
       <div style={{ padding: 24 }}>
@@ -269,15 +248,7 @@ export default function DeliveryZonesPage() {
 
   return (
     <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <Alert
-        type="info"
-        showIcon
-        closable
-        message="Developer mode"
-        description="Зөвхөн хөгжүүлэгчийн горим (delivery zones + Google Map). Production дээр идэвхжүүлэхгүй байхыг зөвлөж байна."
-        style={{ marginBottom: 0 }}
-      />
-      <Card title="Хүргэлтийн бүс зургаар (Google)">
+      <Card title="Хүргэлтийн бүс зургаар">
         <p style={{ color: '#666', marginBottom: 16 }}>
           Зургийн дээр полигон зурж, бүс бүрт жолооч онооно. Шинэ захиалга үүсэхэд хаягийн координат (lat/lng) аль бүсэд
           байгааг шалгаад тухайн жолооч автоматаар оноогдоно.
