@@ -61,6 +61,7 @@ const drawerDeliveryColumns: TableColumnsType<Delivery> = [
   { title: 'ID', dataIndex: 'id', width: 72, fixed: 'left' },
   { title: 'Дэлгүүр', width: 120, render: (_, r) => r.merchant?.username ?? '-' },
   { title: 'Хаяг', dataIndex: 'address', ellipsis: true },
+  { title: 'Тайлбар', dataIndex: 'comment', width: 160, ellipsis: true, render: (v) => v || '-' },
   { title: 'Утас', dataIndex: 'phone', width: 112 },
   {
     title: 'Үнэ',
@@ -508,6 +509,7 @@ export default function NewReportPage() {
       ID: d.id,
       Дэлгүүр: d.merchant?.username ?? '',
       Хаяг: d.address ?? '',
+      Тайлбар: d.comment ?? '',
       Утас: d.phone ?? '',
       Үнэ: Number(d.price ?? 0),
       Төлөв: d.status_name?.status ?? String(d.status),
@@ -735,7 +737,7 @@ export default function NewReportPage() {
           rowKey="id"
           pagination={false}
           dataSource={drawerDeliveries}
-          scroll={{ x: 960, y: 'calc(70vh - 200px)' }}
+          scroll={{ x: 1120, y: 'calc(70vh - 200px)' }}
           columns={drawerDeliveryColumns}
         />
       </Drawer>
