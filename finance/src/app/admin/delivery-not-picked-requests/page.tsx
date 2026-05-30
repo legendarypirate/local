@@ -126,41 +126,72 @@ export default function DeliveryNotPickedRequestsPage() {
   const { expandable } = useDeliveryItemsExpand(getDeliveryId);
 
   const columns: TableColumnsType<NotPickedRow> = [
-    { title: 'ID', dataIndex: 'id', width: 70 },
     {
       title: 'Хүргэлт',
-      width: 100,
+      key: 'delivery',
+      width: 96,
       render: (_, r) => r.delivery?.delivery_id ?? r.delivery?.id ?? r.delivery_id,
     },
     {
       title: 'Утас',
-      width: 120,
+      key: 'phone',
+      width: 112,
       render: (_, r) => r.delivery?.phone ?? '—',
     },
     {
       title: 'Хаяг',
+      key: 'address',
       ellipsis: true,
-      width: 200,
+      width: 220,
       render: (_, r) => r.delivery?.address ?? '—',
     },
-    { title: 'Дэлгүүр', render: (_, r) => r.delivery?.merchant?.username ?? '—' },
-    { title: 'Жолооч', render: (_, r) => r.delivery?.driver?.username ?? '—' },
-    { title: 'Хүсэлт гаргасан', render: (_, r) => r.requester?.username ?? '—' },
-    { title: 'Төлөв (хүргэлт)', width: 110, render: (_, r) => r.delivery?.status ?? '—' },
+    {
+      title: 'Дэлгүүр',
+      key: 'merchant',
+      width: 120,
+      ellipsis: true,
+      render: (_, r) => r.delivery?.merchant?.username ?? '—',
+    },
+    {
+      title: 'Жолооч',
+      key: 'driver',
+      width: 110,
+      ellipsis: true,
+      render: (_, r) => r.delivery?.driver?.username ?? '—',
+    },
+    {
+      title: 'Хүсэлт гаргасан',
+      key: 'requester',
+      width: 130,
+      ellipsis: true,
+      render: (_, r) => r.requester?.username ?? '—',
+    },
+    {
+      title: 'Төлөв (хүргэлт)',
+      key: 'delivery_status',
+      width: 120,
+      render: (_, r) => r.delivery?.status ?? '—',
+    },
     {
       title: 'Жолоочийн тайлбар',
+      key: 'driver_comment',
       dataIndex: 'driver_comment',
       ellipsis: true,
-      width: 200,
+      width: 180,
       render: (t: string | null) => t || '—',
     },
-    { title: 'Хүсэлтийн төлөв', dataIndex: 'status', width: 130, render: (s: string) => statusTag(s) },
-    { title: 'Огноо', dataIndex: 'createdAt', width: 170 },
+    {
+      title: 'Хүсэлтийн төлөв',
+      key: 'status',
+      dataIndex: 'status',
+      width: 140,
+      render: (s: string) => statusTag(s),
+    },
+    { title: 'Огноо', key: 'createdAt', dataIndex: 'createdAt', width: 168 },
     {
       title: 'Үйлдэл',
       key: 'actions',
       width: 200,
-      fixed: 'right',
       render: (_, r) =>
         r.status === 'pending' ? (
           <Space>
@@ -221,7 +252,8 @@ export default function DeliveryNotPickedRequestsPage() {
         loading={loading}
         columns={columns}
         dataSource={rows}
-        scroll={{ x: 1400 }}
+        tableLayout="fixed"
+        scroll={{ x: 1580 }}
         pagination={{ pageSize: 50 }}
         expandable={expandable}
       />

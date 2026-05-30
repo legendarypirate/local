@@ -185,64 +185,79 @@ export default function DeliveryAddressRequestsPage() {
   const { expandable } = useDeliveryItemsExpand(getDeliveryId);
 
   const columns: TableColumnsType<AddressRequestRow> = [
-    { title: 'ID', dataIndex: 'id', width: 70 },
     {
       title: 'Хүргэлт',
-      width: 100,
+      key: 'delivery',
+      width: 96,
       render: (_, r) => r.delivery?.id ?? r.delivery_id,
     },
     {
       title: 'Утас',
-      width: 120,
+      key: 'phone',
+      width: 112,
       render: (_, r) => r.delivery?.phone ?? '—',
     },
     {
       title: 'Хаяг',
+      key: 'address',
       ellipsis: true,
       width: 200,
       render: (_, r) => r.delivery?.address ?? '—',
     },
     {
       title: 'Дэлгүүр',
+      key: 'merchant',
+      width: 120,
+      ellipsis: true,
       render: (_, r) => r.delivery?.merchant?.username ?? '—',
     },
     {
       title: 'Одоогийн жолооч',
+      key: 'driver',
+      width: 130,
+      ellipsis: true,
       render: (_, r) => r.delivery?.driver?.username ?? '—',
     },
     {
       title: 'Хүсэлт гаргасан',
+      key: 'requester',
+      width: 130,
+      ellipsis: true,
       render: (_, r) => r.requester?.username ?? '—',
     },
     {
       title: 'Өмнөх хаяг',
+      key: 'previous_address',
       dataIndex: 'previous_address',
       ellipsis: true,
       width: 180,
     },
     {
       title: 'Шинэ хаяг',
+      key: 'new_address',
       dataIndex: 'new_address',
       ellipsis: true,
       width: 180,
     },
     {
       title: 'Төлөв',
+      key: 'status',
       dataIndex: 'status',
-      width: 120,
+      width: 130,
       render: (s: string) => statusTag(s),
     },
     {
-      title: 'Шинэ жолооч (баталсны дараа)',
-      width: 160,
+      title: 'Шинэ жолооч',
+      key: 'new_driver',
+      width: 120,
+      ellipsis: true,
       render: (_, r) => r.new_driver?.username ?? (r.new_driver_id ? `#${r.new_driver_id}` : '—'),
     },
-    { title: 'Огноо', dataIndex: 'createdAt', width: 170 },
+    { title: 'Огноо', key: 'createdAt', dataIndex: 'createdAt', width: 168 },
     {
       title: 'Үйлдэл',
       key: 'actions',
       width: 200,
-      fixed: 'right',
       render: (_, r) =>
         r.status === 'pending' ? (
           <Space>
@@ -281,7 +296,8 @@ export default function DeliveryAddressRequestsPage() {
         loading={loading}
         columns={columns}
         dataSource={rows}
-        scroll={{ x: 1500 }}
+        tableLayout="fixed"
+        scroll={{ x: 1780 }}
         pagination={{ pageSize: 50 }}
         expandable={expandable}
       />
