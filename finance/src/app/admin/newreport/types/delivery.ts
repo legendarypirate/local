@@ -10,6 +10,7 @@ export interface Delivery {
   address: string;
   status: number | string;
   price: number;
+  delivery_price?: number;
   comment?: string;
   driver: { username: string } | null;
   createdAt?: string;

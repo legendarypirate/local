@@ -64,10 +64,16 @@ const drawerDeliveryColumns: TableColumnsType<Delivery> = [
   { title: 'Тайлбар', dataIndex: 'comment', width: 160, ellipsis: true, render: (v) => v || '-' },
   { title: 'Утас', dataIndex: 'phone', width: 112 },
   {
-    title: 'Үнэ',
+    title: 'Барааны үнэ',
     dataIndex: 'price',
-    width: 96,
+    width: 104,
     render: (v: number) => `${Number(v ?? 0).toLocaleString()} ₮`,
+  },
+  {
+    title: 'Хүргэлтийн үнэ',
+    dataIndex: 'delivery_price',
+    width: 120,
+    render: (v: number | undefined) => `${Number(v ?? 6000).toLocaleString()} ₮`,
   },
   {
     title: 'Төлөв',
@@ -511,7 +517,8 @@ export default function NewReportPage() {
       Хаяг: d.address ?? '',
       Тайлбар: d.comment ?? '',
       Утас: d.phone ?? '',
-      Үнэ: Number(d.price ?? 0),
+      'Барааны үнэ': Number(d.price ?? 0),
+      'Хүргэлтийн үнэ': Number(d.delivery_price ?? 6000),
       Төлөв: d.status_name?.status ?? String(d.status),
       'Хүргэгдсэн огноо': d.delivered_at ? dayjs(d.delivered_at).format('YYYY-MM-DD HH:mm') : '',
     }));
@@ -737,7 +744,7 @@ export default function NewReportPage() {
           rowKey="id"
           pagination={false}
           dataSource={drawerDeliveries}
-          scroll={{ x: 1120, y: 'calc(70vh - 200px)' }}
+          scroll={{ x: 1240, y: 'calc(70vh - 200px)' }}
           columns={drawerDeliveryColumns}
         />
       </Drawer>
