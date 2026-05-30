@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Table, Button, Space, Modal, Input, Tag, App, Select } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { InboxOutlined } from '@ant-design/icons';
+import { useDeliveryItemsExpand } from '@/hooks/useDeliveryItemsExpand';
 
 const api = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -118,12 +119,29 @@ export default function DeliveryNotPickedRequestsPage() {
     return <Tag>{s}</Tag>;
   };
 
+  const getDeliveryId = useCallback(
+    (r: NotPickedRow) => r.delivery_id ?? r.delivery?.id,
+    []
+  );
+  const { expandable } = useDeliveryItemsExpand(getDeliveryId);
+
   const columns: TableColumnsType<NotPickedRow> = [
     { title: 'ID', dataIndex: 'id', width: 70 },
     {
       title: 'Хүргэлт',
       width: 100,
       render: (_, r) => r.delivery?.delivery_id ?? r.delivery?.id ?? r.delivery_id,
+    },
+    {
+      title: 'Утас',
+      width: 120,
+      render: (_, r) => r.delivery?.phone ?? '—',
+    },
+    {
+      title: 'Хаяг',
+      ellipsis: true,
+      width: 200,
+      render: (_, r) => r.delivery?.address ?? '—',
     },
     { title: 'Дэлгүүр', render: (_, r) => r.delivery?.merchant?.username ?? '—' },
     { title: 'Жолооч', render: (_, r) => r.delivery?.driver?.username ?? '—' },
@@ -203,8 +221,9 @@ export default function DeliveryNotPickedRequestsPage() {
         loading={loading}
         columns={columns}
         dataSource={rows}
-        scroll={{ x: 1100 }}
+        scroll={{ x: 1400 }}
         pagination={{ pageSize: 50 }}
+        expandable={expandable}
       />
 
       <Modal

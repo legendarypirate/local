@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { useDeliveryItemsExpand } from '@/hooks/useDeliveryItemsExpand';
 import {
   Table,
   Button,
@@ -177,12 +178,29 @@ export default function DeliveryAddressRequestsPage() {
     return <Tag>{s}</Tag>;
   };
 
+  const getDeliveryId = useCallback(
+    (r: AddressRequestRow) => r.delivery_id ?? r.delivery?.id,
+    []
+  );
+  const { expandable } = useDeliveryItemsExpand(getDeliveryId);
+
   const columns: TableColumnsType<AddressRequestRow> = [
     { title: 'ID', dataIndex: 'id', width: 70 },
     {
       title: 'Хүргэлт',
       width: 100,
       render: (_, r) => r.delivery?.id ?? r.delivery_id,
+    },
+    {
+      title: 'Утас',
+      width: 120,
+      render: (_, r) => r.delivery?.phone ?? '—',
+    },
+    {
+      title: 'Хаяг',
+      ellipsis: true,
+      width: 200,
+      render: (_, r) => r.delivery?.address ?? '—',
     },
     {
       title: 'Дэлгүүр',
@@ -263,8 +281,9 @@ export default function DeliveryAddressRequestsPage() {
         loading={loading}
         columns={columns}
         dataSource={rows}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1500 }}
         pagination={{ pageSize: 50 }}
+        expandable={expandable}
       />
 
       <Modal
