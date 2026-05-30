@@ -86,6 +86,11 @@ module.exports = (sequelize, Sequelize) => {
         allowNull: false,
         defaultValue: 6000,
       },
+      delivery_image: {
+        type: Sequelize.STRING(512),
+        allowNull: true,
+        defaultValue: null,
+      },
       latitude: {
         type: Sequelize.DECIMAL(10, 8),
         allowNull: true,

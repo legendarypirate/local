@@ -1,5 +1,10 @@
 module.exports = app => {
     const delivery = require("../controllers/delivery.mobile.controller.js");
+    const multer = require("multer");
+    const upload = multer({
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+    });
     var router = require("express").Router();
 
     router.get("/reportcustomer", delivery.getCounts);
@@ -18,8 +23,8 @@ module.exports = app => {
     router.get("/eachstatus/:id/:status", delivery.findWithStatus);
 
 
-    // Mark delivery as complete
-    router.post("/complete/:id", delivery.completeDelivery);
+    // Mark delivery as complete (optional multipart field: image)
+    router.post("/complete/:id", upload.single("image"), delivery.completeDelivery);
     router.post("/:id/address-request", delivery.createAddressChangeRequest);
     router.post("/:id/not-picked-request", delivery.createNotPickedRequest);
     router.get("/driver/:id/status-2", delivery.findDriverDeliveriesWithStatus);

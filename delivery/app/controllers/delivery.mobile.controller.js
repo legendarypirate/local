@@ -9,6 +9,7 @@ const Good = db.goods;
 const DeliveryAddressRequest = db.delivery_address_requests;
 const DeliveryNotPickedRequest = db.delivery_not_picked_requests;
 const moment = require("moment-timezone"); // <-- Add this line
+const { uploadDeliveryImage } = require("../utils/cloudinary");
 
 exports.findDriverDeliveriesWithStatus = (req, res) => {
   const driverId = req.params.id;
@@ -313,11 +314,17 @@ exports.report = async (req, res) => {
   }
 };
 
+function statusRequiresProofImage(statusNum, delivery) {
+  if (statusNum === 7) return true;
+  if (statusNum === 3 && delivery.is_rural) return true;
+  return false;
+}
+
 exports.completeDelivery = async (req, res) => {
   const id = req.params.id;
-  const { status, driver_comment } = req.body;
+  const { status, driver_comment, delivery_image: deliveryImageBody } = req.body;
 
-  if (!status) {
+  if (status === undefined || status === null || status === "") {
     return res.status(400).send({
       success: false,
       message: "Status is required.",
@@ -348,6 +355,27 @@ exports.completeDelivery = async (req, res) => {
       });
     }
 
+    const needsImage = statusRequiresProofImage(statusNum, delivery);
+    let deliveryImageUrl =
+      typeof deliveryImageBody === "string" && deliveryImageBody.trim()
+        ? deliveryImageBody.trim()
+        : null;
+
+    if (req.file) {
+      deliveryImageUrl = await uploadDeliveryImage(req.file);
+    }
+
+    if (needsImage && !deliveryImageUrl) {
+      await t.rollback();
+      return res.status(400).send({
+        success: false,
+        message:
+          statusNum === 7
+            ? "Хаягаар очсон төлөвт зураг заавал оруулна."
+            : "Орон нутгийн хүргэлтэд хүргэсэн төлөвт зураг заавал оруулна.",
+      });
+    }
+
     // 🔹 Prepare update fields
     const updateData = {
       status: statusNum,
@@ -355,8 +383,12 @@ exports.completeDelivery = async (req, res) => {
     };
 
     // ✅ Add driver comment if provided
-    if (driver_comment !== undefined) {
+    if (driver_comment !== undefined && driver_comment !== null) {
       updateData.driver_comment = driver_comment;
+    }
+
+    if (deliveryImageUrl) {
+      updateData.delivery_image = deliveryImageUrl;
     }
 
     // 🔹 Update delivery

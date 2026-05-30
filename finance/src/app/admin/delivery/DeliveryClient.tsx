@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useMemo, useRef, useEffect, Suspense } from 'react';
-import { Table, Button, Space, Input, DatePicker, Drawer, Form, Select, Tag, Modal, App, Checkbox, message, InputNumber, List, Row, Col, Tooltip } from 'antd';
+import { Table, Button, Space, Input, DatePicker, Drawer, Form, Select, Tag, Modal, App, Checkbox, message, InputNumber, List, Row, Col, Tooltip, Image } from 'antd';
 import type { CheckboxProps } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { EditOutlined, DeleteOutlined, PlusOutlined, HistoryOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, PlusOutlined, HistoryOutlined, PictureOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
@@ -76,6 +76,7 @@ interface Delivery {
   is_paid: boolean;
   is_rural: boolean;
   delivery_price?: number;
+  delivery_image?: string | null;
 }
 
 const products = [
@@ -167,6 +168,8 @@ export default function DeliveryPage() {
   const [isDeliveryPriceModal, setIsDeliveryPriceModal] = useState(false);
   const [deliveryPriceInput, setDeliveryPriceInput] = useState<number | null>(6000);
   const [deliveryPriceSubmitting, setDeliveryPriceSubmitting] = useState(false);
+  const [deliveryImageModalOpen, setDeliveryImageModalOpen] = useState(false);
+  const [deliveryImageUrl, setDeliveryImageUrl] = useState<string | null>(null);
   const { modal, message: msg } = App.useApp();
 
   const handleEditClick = async (record: Delivery) => {
@@ -367,6 +370,19 @@ export default function DeliveryPage() {
                 onClick={() => handleViewHistory(record.id)}
                 loading={historyLoading}
                 aria-label="Түүх"
+              />
+            </Tooltip>
+            <Tooltip title={record.delivery_image ? 'VIEW IMAGE' : 'Зураг байхгүй'}>
+              <Button
+                type="text"
+                size="small"
+                icon={<PictureOutlined />}
+                disabled={!record.delivery_image}
+                onClick={() => {
+                  setDeliveryImageUrl(record.delivery_image ?? null);
+                  setDeliveryImageModalOpen(true);
+                }}
+                aria-label="VIEW IMAGE"
               />
             </Tooltip>
             {isNewDelivery && (
@@ -2468,6 +2484,30 @@ export default function DeliveryPage() {
           style={{ width: '100%' }}
           addonAfter="₮"
         />
+      </Modal>
+
+      <Modal
+        title="VIEW IMAGE"
+        open={deliveryImageModalOpen}
+        onCancel={() => setDeliveryImageModalOpen(false)}
+        footer={[
+          <Button key="close" onClick={() => setDeliveryImageModalOpen(false)}>
+            Close
+          </Button>,
+        ]}
+        width={720}
+        destroyOnClose
+      >
+        {deliveryImageUrl ? (
+          <Image
+            src={deliveryImageUrl}
+            alt="Delivery proof"
+            style={{ maxWidth: '100%' }}
+            preview
+          />
+        ) : (
+          <p>Зураг байхгүй</p>
+        )}
       </Modal>
 
       <Modal
