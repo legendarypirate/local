@@ -465,8 +465,15 @@ exports.bulkUpdateDeliveryPrice = async (req, res) => {
   try {
     const [num] = await Delivery.update(
       { delivery_price: priceNum },
-      { where: { id: ids } }
+      { where: { id: { [Op.in]: ids } } }
     );
+    if (!num) {
+      return res.status(404).json({
+        success: false,
+        message: "No deliveries were updated. Check selected rows.",
+        updated: 0,
+      });
+    }
     res.json({
       success: true,
       message: `${num} delivery(ies) updated.`,
@@ -542,9 +549,23 @@ exports.findAll = async (req, res) => {
     });
 
     // 🧾 Response
+    const formattedDeliveries = rows.map((delivery) => {
+      const j = delivery.toJSON();
+      const raw = delivery.dataValues || {};
+      const dp = delivery.get ? delivery.get("delivery_price") : raw.delivery_price;
+      const val =
+        dp !== undefined && dp !== null
+          ? Number(dp)
+          : raw.delivery_price != null
+            ? Number(raw.delivery_price)
+            : 6000;
+      j.delivery_price = val;
+      return j;
+    });
+
     res.status(200).json({
       success: true,
-      data: rows.map((d) => d.toJSON()),
+      data: formattedDeliveries,
       pagination: {
         total: count,
         page,

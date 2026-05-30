@@ -310,8 +310,14 @@ export default function DeliveryPage() {
         </Tag>
       ),
     },
-    { title: 'Үнэ', dataIndex: 'price' },
-   
+    { title: 'Барааны үнэ', dataIndex: 'price', key: 'price' },
+    {
+      title: 'Хүргэлтийн үнэ',
+      dataIndex: 'delivery_price',
+      key: 'delivery_price',
+      width: 120,
+      render: (v: number | undefined) => `${Number(v ?? 6000).toLocaleString()} ₮`,
+    },
     { title: 'Тайлбар', dataIndex: 'comment' },
     {
       title: 'Ж/тайлбар',
@@ -965,6 +971,65 @@ export default function DeliveryPage() {
 
   const handleDeliveryButton = () => {
     setIsDrawerVisible(true);
+  };
+
+  const openDeliveryPriceModal = () => {
+    const selectedRows = deliveryData.filter((d) => selectedRowKeys.includes(d.id));
+    const first = selectedRows[0];
+    const current =
+      first?.delivery_price != null && !Number.isNaN(Number(first.delivery_price))
+        ? Number(first.delivery_price)
+        : 6000;
+    setDeliveryPriceInput(current);
+    setIsDeliveryPriceModal(true);
+  };
+
+  const handleBulkDeliveryPriceSave = async () => {
+    if (deliveryPriceInput == null) {
+      msg.warning('Үнэ оруулна уу');
+      return;
+    }
+    if (deliveryPriceInput < 0) {
+      msg.warning('Үнэ сөрөг байж болохгүй');
+      return;
+    }
+    if (selectedRowKeys.length === 0) {
+      msg.warning('Хүргэлт сонгоно уу');
+      return;
+    }
+
+    const newPrice = Number(deliveryPriceInput);
+    const ids = selectedRowKeys.map((k) => Number(k));
+
+    setDeliveryPriceSubmitting(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/delivery/bulk-delivery-price`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          delivery_ids: ids,
+          delivery_price: newPrice,
+        }),
+      });
+      const result = await res.json();
+      const updated = Number(result.updated ?? 0);
+
+      if (!res.ok || !result.success || updated < 1) {
+        msg.error(result.message || 'Хүргэлтийн үнэ шинэчлэгдсэнгүй');
+        return;
+      }
+
+      msg.success(`${updated} хүргэлтийн үнэ шинэчлэгдлээ`);
+      setIsDeliveryPriceModal(false);
+      setDeliveryData((prev) =>
+        prev.map((d) => (ids.includes(d.id) ? { ...d, delivery_price: newPrice } : d))
+      );
+      setRefreshKey((prev) => prev + 1);
+    } catch {
+      msg.error('Алдаа гарлаа');
+    } finally {
+      setDeliveryPriceSubmitting(false);
+    }
   };
 
   // Handle modal cancel
@@ -2112,11 +2177,7 @@ export default function DeliveryPage() {
             </Button>
             <Button
               type="default"
-              onClick={() => {
-                setDeliveryPriceInput(6000);
-                setIsDeliveryPriceModal(true);
-                setDeliveryPriceInput(6000);
-              }}
+              onClick={openDeliveryPriceModal}
               disabled={selectedRowKeys.length === 0}
             >
               Хүргэлтийн үнэ солих
@@ -2392,44 +2453,14 @@ export default function DeliveryPage() {
         title="Хүргэлтийн үнэ солих"
         open={isDeliveryPriceModal}
         onCancel={() => setIsDeliveryPriceModal(false)}
-        onOk={async () => {
-          if (deliveryPriceInput == null) {
-            msg.warning('Үнэ оруулна уу');
-            return;
-          }
-          if (deliveryPriceInput < 0) {
-            msg.warning('Үнэ сөрөг байж болохгүй');
-            return;
-          }
-          setDeliveryPriceSubmitting(true);
-          try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/delivery/bulk-delivery-price`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                delivery_ids: selectedRowKeys.map((k) => Number(k)),
-                delivery_price: Number(deliveryPriceInput),
-              }),
-            });
-            const result = await res.json();
-            if (result.success) {
-              msg.success(`${result.updated ?? selectedRowKeys.length} хүргэлтийн үнэ шинэчлэгдлээ`);
-              setIsDeliveryPriceModal(false);
-              setRefreshKey((prev) => prev + 1);
-            } else {
-              msg.error(result.message || 'Алдаа гарлаа');
-            }
-          } catch (e) {
-            msg.error('Алдаа гарлаа');
-          } finally {
-            setDeliveryPriceSubmitting(false);
-          }
-        }}
+        onOk={handleBulkDeliveryPriceSave}
         okText="Хадгалах"
         cancelText="Болих"
         confirmLoading={deliveryPriceSubmitting}
       >
-        <div style={{ marginBottom: 8 }}>Сонгосон хүргэлт бүрт хэрэглэх үнэ (₮):</div>
+        <div style={{ marginBottom: 8 }}>
+          Сонгосон {selectedRowKeys.length} хүргэлтэд хэрэглэх хүргэлтийн үнэ (₮). «Барааны үнэ» биш.
+        </div>
         <InputNumber
           min={0}
           value={deliveryPriceInput ?? undefined}
