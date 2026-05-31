@@ -12,7 +12,6 @@ import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import * as XLSX from 'xlsx';
 const { Option } = Select;
 import { useSearchParams } from 'next/navigation';
-import GoogleAddressAutocomplete from '@/components/GoogleAddressAutocomplete';
 
 const { RangePicker } = DatePicker;
 dayjs.extend(isSameOrAfter);
@@ -656,33 +655,6 @@ export default function DeliveryPage() {
     }
   };
 
-  const createKhoroo = async (regionId: number, khorooName: string): Promise<{ id: number; name: string } | null> => {
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/khoroo`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: khorooName,
-          region_id: regionId,
-        }),
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        console.log(`Auto-created khoroo: ${khorooName} for region ${regionId}`);
-        return result.data;
-      } else {
-        console.error('Failed to create khoroo:', result.message);
-        return null;
-      }
-    } catch (error) {
-      console.error('Error creating khoroo:', error);
-      return null;
-    }
-  };
-
   // Handle delivery history
   const handleViewHistory = async (deliveryId: number) => {
     setHistoryLoading(true);
@@ -1099,47 +1071,9 @@ export default function DeliveryPage() {
     return null;
   };
 
-  const previewZoneForCoords = async (lat?: number, lng?: number) => {
-    const sr = await previewServiceRegion();
-    if (sr) {
-      setZonePreview(sr);
-      return;
-    }
-    if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) {
-      setZonePreview(null);
-      return;
-    }
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/delivery-zone/lookup?lat=${lat}&lng=${lng}`
-      );
-      const json = await res.json();
-      if (json.success && json.data) {
-        setZonePreview({
-          zone_name: json.data.zone_name,
-          driver_username: json.data.driver_username,
-        });
-      } else {
-        setZonePreview(null);
-      }
-    } catch {
-      setZonePreview(null);
-    }
-  };
-
   const refreshAssignmentPreview = async () => {
     const sr = await previewServiceRegion();
-    if (sr) {
-      setZonePreview(sr);
-      return;
-    }
-    const lat = form.getFieldValue('latitude');
-    const lng = form.getFieldValue('longitude');
-    if (lat != null && lng != null) {
-      await previewZoneForCoords(lat, lng);
-    } else {
-      setZonePreview(null);
-    }
+    setZonePreview(sr);
   };
 
   const handleDeliveryButton = () => {
@@ -1329,8 +1263,6 @@ export default function DeliveryPage() {
         is_rural: isRural,
         price: Number(values.price),
         comment: values.comment,
-        latitude: values.latitude ?? null,
-        longitude: values.longitude ?? null,
         items: productList.map(item => ({
           good_id: item.productId,
           quantity: item.quantity,
@@ -1991,313 +1923,28 @@ export default function DeliveryPage() {
           <Form.Item
             label="Хаяг"
             name="address"
-            rules={[{ required: true, message: 'Please input the address!' }]}
+            rules={[{ required: true, message: 'Хаяг оруулна уу!' }]}
           >
-            <GoogleAddressAutocomplete
-              onAddressChange={async (address, components) => {
-                // Helper function to normalize district names for matching
-                const normalizeDistrictName = (name: string) => {
-                  return name.toLowerCase().trim()
-                    .replace(/\s*дүүрэг\s*/g, '')
-                    .replace(/\s*дүүргийн\s*/g, '')
-                    .replace(/\s*district\s*/gi, '')
-                    .trim();
-                };
+            <Input.TextArea rows={2} placeholder="Хаяг (гудамж, байр, тоот гэх мэт)" />
+          </Form.Item>
 
-                // Helper function to match district
-                const matchDistrict = (districtText: string) => {
-                  if (!districtText || districts.length === 0) return null;
-
-                  const normalizedInput = normalizeDistrictName(districtText);
-
-                  return districts.find(d => {
-                    const dbName = d.name.toLowerCase().trim();
-                    const normalizedDbName = normalizeDistrictName(dbName);
-
-                    // Try exact match
-                    if (normalizedDbName === normalizedInput) return true;
-                    // Try contains match (either direction)
-                    if (normalizedDbName.includes(normalizedInput) ||
-                      normalizedInput.includes(normalizedDbName)) return true;
-                    // Try original names
-                    if (dbName === districtText.toLowerCase().trim()) return true;
-                    return false;
-                  });
-                };
-
-                // Helper function to extract district from address text
-                const extractDistrictFromAddress = (addr: string) => {
-                  // Check for БЗД first and map it to Баянзүрх
-                  if (/бзд/i.test(addr)) {
-                    // Find Баянзүрх district in the districts list
-                    const bayanzurkhDistrict = districts.find(d =>
-                      normalizeDistrictName(d.name) === 'баянзүрх'
-                    );
-                    if (bayanzurkhDistrict) {
-                      return bayanzurkhDistrict.name;
-                    }
-                  }
-
-                  // Check for СБД and map it to Сүхбаатар
-                  if (/сбд/i.test(addr)) {
-                    // Find Сүхбаатар district in the districts list
-                    const sukhbaatarDistrict = districts.find(d =>
-                      normalizeDistrictName(d.name) === 'сүхбаатар' || normalizeDistrictName(d.name) === 'сухбаатар'
-                    );
-                    if (sukhbaatarDistrict) {
-                      return sukhbaatarDistrict.name;
-                    }
-                  }
-
-                  // Check for БГД and map it to Баянгол (Баянгол дүүрэг)
-                  if (/бгд/i.test(addr)) {
-                    const bayangolDistrict = districts.find(d =>
-                      normalizeDistrictName(d.name) === 'баянгол' || normalizeDistrictName(d.name) === 'баян-гол'
-                    );
-                    if (bayangolDistrict) {
-                      return bayangolDistrict.name;
-                    }
-                  }
-
-                  // СХД → Сонгинохайрхан
-                  if (/схд/i.test(addr)) {
-                    const songinokhairkhanDistrict = districts.find(d =>
-                      normalizeDistrictName(d.name).includes('сонгино') && normalizeDistrictName(d.name).includes('хайрхан')
-                    );
-                    if (songinokhairkhanDistrict) {
-                      return songinokhairkhanDistrict.name;
-                    }
-                  }
-
-                  // ХУД → Хан-Уул
-                  if (/худ/i.test(addr)) {
-                    const khanuulDistrict = districts.find(d =>
-                      normalizeDistrictName(d.name) === 'хан-уул' || normalizeDistrictName(d.name) === 'хануул'
-                    );
-                    if (khanuulDistrict) {
-                      return khanuulDistrict.name;
-                    }
-                  }
-
-                  // ЧД → Чингэлтэй
-                  if (/чд/i.test(addr)) {
-                    const chingelteiDistrict = districts.find(d =>
-                      normalizeDistrictName(d.name) === 'чингэлтэй' || normalizeDistrictName(d.name) === 'чингэлтей'
-                    );
-                    if (chingelteiDistrict) {
-                      return chingelteiDistrict.name;
-                    }
-                  }
-
-                  // Common district patterns in Mongolian addresses
-                  const districtPatterns = [
-                    /(баянзүрх|баян-зүрх|баянзурх)/i,
-                    /(хан-уул|хануул)/i,
-                    /(баянгол|баян-гол)/i,
-                    /(сүхбаатар|сухбаатар)/i,
-                    /(сонгинохайрхан|сонгино-хайрхан)/i,
-                    /(чингэлтэй|чингэлтей)/i,
-                  ];
-
-                  for (const pattern of districtPatterns) {
-                    const match = addr.match(pattern);
-                    if (match) {
-                      return match[1];
-                    }
-                  }
-
-                  // Try to find district name from districts list
-                  for (const district of districts) {
-                    const normalizedDistrict = normalizeDistrictName(district.name);
-                    if (addr.toLowerCase().includes(normalizedDistrict)) {
-                      return district.name;
-                    }
-                  }
-
-                  return null;
-                };
-
-                // Helper function to extract khoroo number from address
-                const extractKhorooFromAddress = (addr: string) => {
-                  // Patterns like "22 хороо", "БЗД - 22 хороо", "22-р хороо", "СБД - хороо 6", "хороо 6", etc.
-                  // Order matters: check district abbreviation patterns first, then number-before patterns, then number-after patterns
-                  const khorooPatterns = [
-                    // District abbreviation patterns: "СБД - хороо 6", "БЗД - хороо 19", etc.
-                    /[а-я]{2,4}\s*-\s*хороо\s*(\d+)/i,  // Matches any district abbreviation (2-4 Cyrillic letters) followed by " - хороо [number]"
-                    // District abbreviation with number before: "БЗД - 19 хороо", "СБД - 6 хороо"
-                    /[а-я]{2,4}\s*-\s*(\d+)\s*(?:хороо)?/i,  // Matches "БЗД - 19" or "БЗД - 19 хороо" or "СБД - 6"
-                    // Number before хороо: "22 хороо", "22-р хороо"
-                    /(\d+)\s*-?\s*р\s*хороо/i,  // "22-р хороо"
-                    /(\d+)\s*-?\s*хороо/i,  // "22 хороо" or "22-хороо"
-                    /(\d+)\s*хор/i,  // "22 хор"
-                    // Number after хороо: "хороо 6", "хороо - 6"
-                    /хороо\s*-?\s*(\d+)/i,  // Matches "хороо 6" or "хороо - 6"
-                  ];
-
-                  for (const pattern of khorooPatterns) {
-                    const match = addr.match(pattern);
-                    if (match) {
-                      return match[1]; // Return the number (without "хороо")
-                    }
-                  }
-
-                  return null;
-                };
-
-
-                let matchedDistrict = null;
-                let matchedKhoroo = null;
-                let khorooNumber = null;
-
-                // Step 1: Try to match district from components
-                if (components?.district) {
-                  matchedDistrict = matchDistrict(components.district);
-                }
-
-                // Step 2: If no district from components, try to extract from address text
-                if (!matchedDistrict && address) {
-                  const extractedDistrict = extractDistrictFromAddress(address);
-                  if (extractedDistrict) {
-                    matchedDistrict = matchDistrict(extractedDistrict);
-                  }
-                }
-
-                // Step 3: If district is matched, fetch khoroos and then match khoroo
-                if (matchedDistrict) {
-                  setIsRural(false); // Uncheck "Орон нутаг" when district is found
-                  form.setFieldsValue({ dist_id: matchedDistrict.id });
-                  const loadedKhoroos = await fetchKhoroos(matchedDistrict.id, true);
-
-                  // Extract khoroo number from address (just the number, no "хороо")
-                  khorooNumber = extractKhorooFromAddress(address);
-
-                  // Update matchKhoroo to use loaded khoroos
-                  const matchKhorooWithData = (khorooText: string, khorooNum: string | null, khoroosData: { id: number; name: string }[]) => {
-                    if (!khoroosData || khoroosData.length === 0) return null;
-
-                    // First try to match by number if we have it (match only the number part, ignore "хороо")
-                    if (khorooNum) {
-                      const matchedByNumber = khoroosData.find(k => {
-                        const khorooName = k.name.toLowerCase();
-                        // Extract just the number from khoroo name (remove "хороо", "р", etc.)
-                        const khorooNameNumber = khorooName.replace(/\s*хороо\s*/g, '').replace(/\s*р\s*/g, '').replace(/\s*-\s*/g, '').trim();
-                        // Match by exact number or number at word boundary
-                        return khorooNameNumber === khorooNum ||
-                          khorooName.includes(khorooNum) &&
-                          (khorooName.match(new RegExp(`\\b${khorooNum}\\b`)) || khorooNameNumber === khorooNum);
-                      });
-                      if (matchedByNumber) return matchedByNumber;
-                    }
-
-                    // Then try to match by text
-                    if (khorooText) {
-                      const normalizedKhoroo = khorooText.toLowerCase().trim().replace(/\s*хороо\s*/g, '').trim();
-                      return khoroosData.find(k => {
-                        const kName = k.name.toLowerCase().replace(/\s*хороо\s*/g, '').trim();
-                        return kName.includes(normalizedKhoroo) ||
-                          normalizedKhoroo.includes(kName);
-                      });
-                    }
-
-                    return null;
-                  };
-
-                  // Try to match khoroo from components
-                  if (components?.khoroo) {
-                    matchedKhoroo = matchKhorooWithData(components.khoroo, khorooNumber, loadedKhoroos);
-                  }
-
-                  // If no khoroo from components, try to match from address text
-                  if (!matchedKhoroo && khorooNumber) {
-                    matchedKhoroo = matchKhorooWithData('', khorooNumber, loadedKhoroos);
-                  }
-
-                  // Also try matching any khoroo text from address (fallback pattern matching)
-                  if (!matchedKhoroo && address) {
-                    // Try to extract khoroo number using the same patterns as extractKhorooFromAddress
-                    const fallbackPatterns = [
-                      /[а-я]{2,4}\s*-\s*хороо\s*(\d+)/i,
-                      /[а-я]{2,4}\s*-\s*(\d+)\s*(?:хороо)?/i,
-                      /(\d+)\s*-?\s*р\s*хороо/i,
-                      /(\d+)\s*-?\s*хороо/i,
-                      /(\d+)\s*хор/i,
-                      /хороо\s*-?\s*(\d+)/i,
-                    ];
-
-                    for (const pattern of fallbackPatterns) {
-                      const khorooMatch = address.match(pattern);
-                      if (khorooMatch) {
-                        const extractedNum = khorooMatch[1];
-                        matchedKhoroo = matchKhorooWithData('', extractedNum, loadedKhoroos);
-                        if (matchedKhoroo) break;
-                      }
-                    }
-                  }
-
-                  if (matchedKhoroo) {
-                    form.setFieldsValue({ khoroo_id: matchedKhoroo.id });
-                    setSelectedKhorooId(matchedKhoroo.id);
-                  } else if (khorooNumber && matchedDistrict) {
-                    // If khoroo number was extracted but not found in DB, create it
-                    const khorooName = khorooNumber;
-                    const newKhoroo = await createKhoroo(matchedDistrict.id, khorooName);
-                    if (newKhoroo) {
-                      // Refresh khoroos list and set the newly created khoroo
-                      const updatedKhoroos = await fetchKhoroos(matchedDistrict.id, true);
-                      const foundKhoroo = updatedKhoroos.find(k => k.id === newKhoroo.id);
-                      if (foundKhoroo) {
-                        form.setFieldsValue({ khoroo_id: foundKhoroo.id });
-                        setSelectedKhorooId(foundKhoroo.id);
-                      }
-                    } else {
-                      // If creation failed, clear khoroo
-                      form.setFieldsValue({ khoroo_id: undefined });
-                      setSelectedKhorooId(null);
-                    }
-                  } else {
-                    // Clear khoroo if no match found and no number extracted
-                    form.setFieldsValue({ khoroo_id: undefined });
-                    setSelectedKhorooId(null);
-                  }
-                } else {
-                  // If no district info from Google, check "Орон нутаг" and leave dist/khoroo empty
-                  setIsRural(true);
-                  form.setFieldsValue({ dist_id: undefined });
-                  form.setFieldsValue({ khoroo_id: undefined });
+          <Form.Item>
+            <Checkbox
+              checked={isRural}
+              onChange={async (e) => {
+                const checked = e.target.checked;
+                setIsRural(checked);
+                if (checked) {
+                  form.setFieldsValue({ dist_id: undefined, khoroo_id: undefined });
                   setSelectedKhorooId(null);
                   setFormKhoroos([]);
-                  // Log for debugging if district not found
-                  console.log('District not matched:', {
-                    address,
-                    googleDistrict: components?.district,
-                    availableDistricts: districts.map(d => d.name)
-                  });
                 }
-
-                if (
-                  components?.latitude != null &&
-                  components?.longitude != null &&
-                  !Number.isNaN(components.latitude) &&
-                  !Number.isNaN(components.longitude)
-                ) {
-                  form.setFieldsValue({
-                    latitude: components.latitude,
-                    longitude: components.longitude,
-                  });
-                  await previewZoneForCoords(components.latitude, components.longitude);
-                } else {
-                  form.setFieldsValue({ latitude: undefined, longitude: undefined });
-                  setZonePreview(null);
-                }
+                await refreshAssignmentPreview();
+                form.validateFields(['dist_id', 'khoroo_id']).catch(() => undefined);
               }}
-              placeholder="Хаяг оруулж захиалга эхлүүлэх. Жич: Та сайтар шалгаж зөв хаяг оруулна уу"
-            />
-          </Form.Item>
-          <Form.Item name="latitude" hidden>
-            <Input />
-          </Form.Item>
-          <Form.Item name="longitude" hidden>
-            <Input />
+            >
+              Орон нутаг
+            </Checkbox>
           </Form.Item>
           {zonePreview && (
             <Alert
@@ -2316,7 +1963,17 @@ export default function DeliveryPage() {
           <Form.Item
             label="Дүүрэг"
             name="dist_id"
-            rules={isRural ? [] : [{ required: true, message: 'Дүүрэг сонгоно уу!' }]}
+            rules={[
+              {
+                validator: (_, value) => {
+                  if (isRural) return Promise.resolve();
+                  if (value == null || value === '') {
+                    return Promise.reject(new Error('Дүүрэг сонгоно уу!'));
+                  }
+                  return Promise.resolve();
+                },
+              },
+            ]}
           >
             <Select
               placeholder="Дүүрэг сонгох"
@@ -2350,7 +2007,17 @@ export default function DeliveryPage() {
           <Form.Item
             label="Хороо"
             name="khoroo_id"
-            rules={isRural ? [] : [{ required: true, message: 'Хороо сонгоно уу!' }]}
+            rules={[
+              {
+                validator: (_, value) => {
+                  if (isRural) return Promise.resolve();
+                  if (value == null || value === '') {
+                    return Promise.reject(new Error('Хороо сонгоно уу!'));
+                  }
+                  return Promise.resolve();
+                },
+              },
+            ]}
           >
             <Select
               placeholder="Хороо сонгох"
@@ -2364,7 +2031,6 @@ export default function DeliveryPage() {
               showSearch
               optionFilterProp="children"
               loading={formKhoroosLoading}
-              allowClear
             >
               {formKhoroos.map((khoroo) => (
                 <Select.Option key={khoroo.id} value={khoroo.id}>
@@ -2403,23 +2069,6 @@ export default function DeliveryPage() {
           </Form.Item>
 
 
-          <Form.Item>
-            <Checkbox
-              checked={isRural}
-              onChange={async (e) => {
-                const checked = e.target.checked;
-                setIsRural(checked);
-                if (checked) {
-                  form.setFieldsValue({ dist_id: undefined, khoroo_id: undefined });
-                  setSelectedKhorooId(null);
-                  setFormKhoroos([]);
-                }
-                await refreshAssignmentPreview();
-              }}
-            >
-              Орон нутаг
-            </Checkbox>
-          </Form.Item>
           <Form.Item>
             <Button
               type="primary"
