@@ -256,10 +256,29 @@ exports.create = async (req, res) => {
 
     const delivery_id = await generateDeliveryId();
 
+    const isRural = !!req.body.is_rural;
+    if (!isRural && (!req.body.dist_id || !req.body.khoroo_id)) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Дүүрэг болон хороо заавал сонгоно уу (эсвэл Орон нутаг сонгоно уу).',
+      });
+    }
+
     let driverId = null;
     let matchedZone = null;
+    let matchedServiceRegion = null;
     const zoneController = require("./delivery_zone.controller.js");
+    const serviceRegionCtrl = require("./service_region.controller.js");
     const { geocodeAddress } = require("../utils/geocode.js");
+
+    matchedServiceRegion = await serviceRegionCtrl.findForDelivery({
+      is_rural: isRural,
+      khoroo_id: req.body.khoroo_id,
+    });
+    if (matchedServiceRegion?.driver_id) {
+      driverId = matchedServiceRegion.driver_id;
+    }
 
     let lat = req.body.latitude != null ? parseFloat(req.body.latitude) : null;
     let lng = req.body.longitude != null ? parseFloat(req.body.longitude) : null;
@@ -272,7 +291,7 @@ exports.create = async (req, res) => {
       }
     }
 
-    if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+    if (!driverId && lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
       matchedZone = await zoneController.findZoneByPoint(lat, lng);
       if (matchedZone) driverId = matchedZone.driver_id;
     }
@@ -336,7 +355,14 @@ exports.create = async (req, res) => {
     await t.commit();
 
     const payload = { success: true, data: delivery };
-    if (matchedZone) {
+    if (matchedServiceRegion) {
+      payload.service_region_assignment = {
+        service_region_id: matchedServiceRegion.id,
+        service_region_name: matchedServiceRegion.name,
+        driver_id: matchedServiceRegion.driver_id,
+        driver_username: matchedServiceRegion.driver?.username ?? null,
+      };
+    } else if (matchedZone) {
       payload.zone_assignment = {
         zone_id: matchedZone.id,
         zone_name: matchedZone.name,

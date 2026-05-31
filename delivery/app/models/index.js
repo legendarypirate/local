@@ -52,6 +52,8 @@ db.delivery_not_picked_requests = require("./delivery_not_picked_request.model.j
 db.delivery_price_settings = require("./delivery_price_setting.model.js")(sequelize, Sequelize);
 db.driver_daily_settlements = require("./driver_daily_settlement.model.js")(sequelize, Sequelize);
 db.driver_settlement_payments = require("./driver_settlement_payment.model.js")(sequelize, Sequelize);
+db.service_regions = require("./service_region.model.js")(sequelize, Sequelize);
+db.service_region_khoroos = require("./service_region_khoroo.model.js")(sequelize, Sequelize);
 
 db.role_permissions = require("./role_permission.model.js")(sequelize, Sequelize);
 
@@ -355,5 +357,20 @@ db.deliveries.belongsTo(db.khoroos, {
 
 db.delivery_zones.belongsTo(db.users, { foreignKey: 'driver_id', as: 'driver' });
 db.users.hasMany(db.delivery_zones, { foreignKey: 'driver_id', as: 'delivery_zones' });
+
+db.service_regions.belongsTo(db.users, { foreignKey: 'driver_id', as: 'driver' });
+db.users.hasMany(db.service_regions, { foreignKey: 'driver_id', as: 'service_regions' });
+db.service_regions.belongsToMany(db.khoroos, {
+  through: db.service_region_khoroos,
+  foreignKey: 'service_region_id',
+  otherKey: 'khoroo_id',
+  as: 'khoroos',
+});
+db.khoroos.belongsToMany(db.service_regions, {
+  through: db.service_region_khoroos,
+  foreignKey: 'khoroo_id',
+  otherKey: 'service_region_id',
+  as: 'service_regions',
+});
 
 module.exports = db;

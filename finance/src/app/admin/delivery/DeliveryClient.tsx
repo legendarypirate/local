@@ -1077,7 +1077,34 @@ export default function DeliveryPage() {
     },
   };
 
+  const previewServiceRegion = async (rural?: boolean, khorooId?: number | null) => {
+    const isR = rural ?? isRural;
+    const kid = khorooId ?? form.getFieldValue('khoroo_id');
+    if (!isR && !kid) {
+      return null;
+    }
+    try {
+      const q = isR ? 'is_rural=true' : `khoroo_id=${kid}`;
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/service-region/lookup?${q}`);
+      const json = await res.json();
+      if (json.success && json.data) {
+        return {
+          zone_name: json.data.service_region_name as string,
+          driver_username: (json.data.driver_username as string | null) ?? null,
+        };
+      }
+    } catch {
+      /* ignore */
+    }
+    return null;
+  };
+
   const previewZoneForCoords = async (lat?: number, lng?: number) => {
+    const sr = await previewServiceRegion();
+    if (sr) {
+      setZonePreview(sr);
+      return;
+    }
     if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) {
       setZonePreview(null);
       return;
@@ -1096,6 +1123,21 @@ export default function DeliveryPage() {
         setZonePreview(null);
       }
     } catch {
+      setZonePreview(null);
+    }
+  };
+
+  const refreshAssignmentPreview = async () => {
+    const sr = await previewServiceRegion();
+    if (sr) {
+      setZonePreview(sr);
+      return;
+    }
+    const lat = form.getFieldValue('latitude');
+    const lng = form.getFieldValue('longitude');
+    if (lat != null && lng != null) {
+      await previewZoneForCoords(lat, lng);
+    } else {
       setZonePreview(null);
     }
   };
@@ -1256,19 +1298,23 @@ export default function DeliveryPage() {
     try {
       const values = await form.validateFields();
 
-      // Validate dist_id is set
-      if (!values.dist_id) {
-        msg.error('Дүүрэг олдсонгүй. Дүүгийг эхлээд сонгоно уу.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Verify the district exists in our districts list
-      const selectedDistrict = districts.find(d => d.id === values.dist_id);
-      if (!selectedDistrict) {
-        msg.error('Дүүрэг олдсонгүй. Дүүгийг эхлээд сонгоно уу.');
-        setIsSubmitting(false);
-        return;
+      if (!isRural) {
+        if (!values.dist_id) {
+          msg.error('Дүүрэг сонгоно уу.');
+          setIsSubmitting(false);
+          return;
+        }
+        if (!values.khoroo_id) {
+          msg.error('Хороо сонгоно уу (эсвэл Орон нутаг сонгоно уу).');
+          setIsSubmitting(false);
+          return;
+        }
+        const selectedDistrict = districts.find(d => d.id === values.dist_id);
+        if (!selectedDistrict) {
+          msg.error('Дүүрэг олдсонгүй.');
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       // Construct payload including items from warehouse
@@ -1277,8 +1323,8 @@ export default function DeliveryPage() {
         phone: normalizeDeliveryPhone(values.phone),
         address: values.address,
         status: 1,
-        dist_id: values.dist_id,
-        khoroo_id: values.khoroo_id || null,
+        dist_id: isRural ? null : values.dist_id,
+        khoroo_id: isRural ? null : values.khoroo_id || null,
         is_paid: isPaid,
         is_rural: isRural,
         price: Number(values.price),
@@ -1302,10 +1348,17 @@ export default function DeliveryPage() {
       const result = await response.json();
 
       if (result.success) {
+        const sra = result.service_region_assignment;
         const za = result.zone_assignment;
-        if (za?.driver_username) {
+        if (sra?.driver_username) {
           msg.success(
-            `Амжилттай. Бүс "${za.zone_name}" — жолооч: ${za.driver_username} автоматаар оноогдлоо.`
+            `Амжилттай. Бүс «${sra.service_region_name}» — жолооч: ${sra.driver_username} оноогдлоо.`
+          );
+        } else if (sra?.service_region_name) {
+          msg.success(`Амжилттай. Бүс: ${sra.service_region_name} (жолооч оноогдоогүй).`);
+        } else if (za?.driver_username) {
+          msg.success(
+            `Амжилттай. Газрын зураг бүс «${za.zone_name}» — жолооч: ${za.driver_username} оноогдлоо.`
           );
         } else {
           msg.success('Амжилттай бүртгэгдлээ');
@@ -2263,24 +2316,23 @@ export default function DeliveryPage() {
           <Form.Item
             label="Дүүрэг"
             name="dist_id"
-            rules={[{ required: true, message: 'Дүүрэг сонгоно уу!' }]}
+            rules={isRural ? [] : [{ required: true, message: 'Дүүрэг сонгоно уу!' }]}
           >
             <Select
               placeholder="Дүүрэг сонгох"
+              disabled={isRural}
               onDropdownVisibleChange={(open) => {
                 if (open) fetchDistricts();
               }}
               onChange={(value) => {
-                // Explicitly set the form value to ensure it's set
                 form.setFieldsValue({ dist_id: value });
                 setSelectedKhorooId(null);
                 setFormKhoroos([]);
                 form.setFieldsValue({ khoroo_id: undefined });
+                setZonePreview(null);
                 if (value) {
-                  setIsRural(false); // Uncheck "Орон нутаг" when district is manually selected
+                  setIsRural(false);
                   fetchKhoroos(value, true);
-                } else {
-                  setIsRural(true); // Check "Орон нутаг" when district is cleared
                 }
               }}
               showSearch
@@ -2298,14 +2350,17 @@ export default function DeliveryPage() {
           <Form.Item
             label="Хороо"
             name="khoroo_id"
+            rules={isRural ? [] : [{ required: true, message: 'Хороо сонгоно уу!' }]}
           >
             <Select
-              placeholder="Хороо сонгох (сонголттой)"
+              placeholder="Хороо сонгох"
               value={selectedKhorooId}
-              onChange={(value) => {
+              onChange={async (value) => {
                 setSelectedKhorooId(value);
+                form.setFieldsValue({ khoroo_id: value });
+                await refreshAssignmentPreview();
               }}
-              disabled={!form.getFieldValue('dist_id')}
+              disabled={isRural || !form.getFieldValue('dist_id')}
               showSearch
               optionFilterProp="children"
               loading={formKhoroosLoading}
@@ -2351,7 +2406,16 @@ export default function DeliveryPage() {
           <Form.Item>
             <Checkbox
               checked={isRural}
-              onChange={(e) => setIsRural(e.target.checked)}
+              onChange={async (e) => {
+                const checked = e.target.checked;
+                setIsRural(checked);
+                if (checked) {
+                  form.setFieldsValue({ dist_id: undefined, khoroo_id: undefined });
+                  setSelectedKhorooId(null);
+                  setFormKhoroos([]);
+                }
+                await refreshAssignmentPreview();
+              }}
             >
               Орон нутаг
             </Checkbox>

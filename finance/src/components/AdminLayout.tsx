@@ -114,7 +114,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { key: '/admin/delivery', icon: <TruckOutlined />, label: 'Хүргэлт', permission: 'delivery:view_delivery' },
     { key: '/admin/driver', icon: <UserOutlined />, label: 'Жолооч', permission: 'log:view_log' },
     { key: '/admin/order', icon: <ShoppingCartOutlined />, label: 'Татан авалт', permission: 'order:view_order' },
-    { key: '/admin/region', icon: <AppstoreAddOutlined />, label: 'Бүс', permission: 'region:view_region' },
+    { key: '/admin/region', icon: <AppstoreAddOutlined />, label: 'Хүргэлтийн бүс', permission: 'region:view_region' },
     { key: '/admin/delivery-zones', icon: <AppstoreAddOutlined />, label: 'Хүргэлтийн бүс зургаар', permission: 'role:view_role' },
     { key: '/admin/delivery-address-requests', icon: <SwapOutlined />, label: 'Хаяг солих хүсэлт', permission: 'role:view_role' },
     { key: '/admin/delivery-not-picked-requests', icon: <InboxOutlined />, label: 'Авч гараагүй хүсэлт', permission: 'role:view_role' },
