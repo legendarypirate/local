@@ -1,5 +1,6 @@
 'use client';
 
+import './delivery-admin.css';
 import React, { useState, useMemo, useRef, useEffect, Suspense } from 'react';
 import { Table, Button, Space, Input, DatePicker, Drawer, Form, Select, Tag, Modal, App, Checkbox, message, InputNumber, List, Row, Col, Tooltip, Image } from 'antd';
 import type { CheckboxProps } from 'antd';
@@ -330,6 +331,7 @@ export default function DeliveryPage() {
     {
       title: 'Үүссэн огноо',
       dataIndex: 'createdAt',
+      width: 128,
       render: (text: string) => {
         return dayjs(text).format('YYYY-MM-DD hh:mm A');
       },
@@ -337,6 +339,7 @@ export default function DeliveryPage() {
     {
       title: 'Хүргэсэн огноо',
       dataIndex: 'delivered_at',
+      width: 128,
       render: (text: string) => {
         return text ? dayjs(text).format('YYYY-MM-DD hh:mm A') : '-';
       },
@@ -345,14 +348,18 @@ export default function DeliveryPage() {
       title: 'Мерчанд нэр',
       dataIndex: ['merchant', 'username'],
       key: 'merchant',
+      width: 110,
+      ellipsis: true,
       render: (_, record) => record.merchant?.username || '-'
     },
     {
       title: 'Утас / Хаяг',
       dataIndex: 'phone',
       key: 'phone_address',
+      width: 180,
+      className: 'delivery-cell-wrap',
       render: (phone: string, record: Delivery) => (
-        <div>
+        <div className="delivery-cell-wrap">
           <div style={{ fontWeight: 500 }}>{phone}</div>
           <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
             {record.address}
@@ -363,13 +370,14 @@ export default function DeliveryPage() {
     {
       title: 'Төлөв',
       dataIndex: 'status_name',
+      width: 110,
       render: (status_name: { status: string, color: string }) => (
         <Tag color={status_name.color}>
           {status_name.status}
         </Tag>
       ),
     },
-    { title: 'Барааны үнэ', dataIndex: 'price', key: 'price' },
+    { title: 'Барааны үнэ', dataIndex: 'price', key: 'price', width: 96 },
     {
       title: 'Үнийн тохиргоо',
       key: 'price_setting',
@@ -386,11 +394,13 @@ export default function DeliveryPage() {
         return `${Number(record.delivery_price ?? 6000).toLocaleString()} / 4,000 ₮`;
       },
     },
-    { title: 'Тайлбар', dataIndex: 'comment' },
+    { title: 'Тайлбар', dataIndex: 'comment', width: 120, ellipsis: true },
     {
       title: 'Ж/тайлбар',
       dataIndex: 'driver_comment',
       key: 'driver_comment',
+      width: 100,
+      ellipsis: true,
       render: (driver_comment: string) => (
         <Tooltip title={driver_comment || ''}>
           <span style={{
@@ -407,11 +417,16 @@ export default function DeliveryPage() {
       title: 'Жолооч нэр',
       dataIndex: ['driver', 'username'],
       key: 'driver',
+      width: 100,
+      ellipsis: true,
       render: (_, record) => record.driver?.username || '-'
     },
     {
       title: 'Үйлдэл',
       key: 'actions',
+      width: 130,
+      fixed: 'right',
+      className: 'delivery-cell-actions',
       render: (_: any, record: Delivery) => {
         const statusValue = typeof record.status === 'number' ? record.status : parseInt(String(record.status), 10);
         const isNewDelivery = statusValue === 1 || record.status_name?.status === 'шинэ';
@@ -1591,22 +1606,22 @@ export default function DeliveryPage() {
   };
 
   return (
-    <div style={{ paddingBottom: '100px' }}> {/* Adding padding to prevent overlap with fixed button */}
+    <div className="delivery-admin-page" style={{ paddingBottom: '100px' }}>
       <h1 style={{ marginBottom: 24 }}>Хүргэлт</h1>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'center' }}>
+      <div className="delivery-admin-filters">
         <Input
           placeholder="Filter by Phone"
           value={phoneFilter}
           onChange={(e) => setPhoneFilter(e.target.value)}
           allowClear
-          style={{ width: 200 }}
+          className="delivery-filter-control"
         />
         {hasPermission('delivery:excel_import_delivery') && (
 
           <Select
             placeholder="Filter by Driver"
-            style={{ width: 200 }}
+            className="delivery-filter-control"
             value={driverFilter ?? undefined}
             onChange={handleRealDriverFilterChange}
             onDropdownVisibleChange={(open) => {
@@ -1647,8 +1662,8 @@ export default function DeliveryPage() {
         ))}
         <button
           type="button"
+          className="delivery-filter-add-btn"
           style={{
-            marginLeft: 'auto',
             padding: '4px 15px',
             fontSize: 14,
             borderRadius: 6,
@@ -1668,7 +1683,7 @@ export default function DeliveryPage() {
             {/* Add this to your filter section with other filters */}
             <Select
               placeholder="Дүүргээр шүүх"
-              style={{ width: 200 }}
+              className="delivery-filter-control"
               value={districtFilter}
               onChange={handleDistrictFilterChange}
               onDropdownVisibleChange={(open) => {
@@ -1688,7 +1703,7 @@ export default function DeliveryPage() {
             {districtFilter && (
               <Select
                 placeholder="Хороогоор шүүх"
-                style={{ width: 200 }}
+                className="delivery-filter-control"
                 value={khorooFilter}
                 onChange={handleKhorooFilterChange}
                 allowClear
@@ -1705,7 +1720,7 @@ export default function DeliveryPage() {
             )}
             <Select
               placeholder="Дэлгүүрээр шүүх (users.id)"
-              style={{ width: 240 }}
+              className="delivery-filter-control"
               value={merchantFilter ?? undefined}
               onChange={handleMerchantFilterChange}
               onDropdownVisibleChange={(open) => {
@@ -1755,11 +1770,15 @@ export default function DeliveryPage() {
 
       </div>
 
+      <div className="delivery-admin-table-wrap">
       <Table
+        className="delivery-admin-table"
         rowSelection={rowSelection}
         columns={columns}
         dataSource={deliveryData}
         rowKey="id"
+        scroll={{ x: 1180 }}
+        tableLayout="fixed"
         pagination={{
           current: pagination.current,
           pageSize: pagination.pageSize,
@@ -1775,6 +1794,7 @@ export default function DeliveryPage() {
           },
         }}
         rowClassName={(record) => (record.is_paid ? 'paid-row' : '')}
+        size="small"
         expandable={{
           expandedRowRender: (record) => {
             if (loadingRows.includes(record.id)) {
@@ -1811,6 +1831,7 @@ export default function DeliveryPage() {
           expandRowByClick: false,
         }}
       />
+      </div>
       <Drawer
         title="Хүргэлт үүсгэх"
         placement="right"
@@ -2373,8 +2394,8 @@ export default function DeliveryPage() {
       {hasPermission('delivery:excel_import_delivery') && (
 
 
-        <div style={{ position: 'fixed', bottom: 0, left: 0, width: '100%', background: '#fff', padding: '16px 24px', borderTop: '1px solid #ddd', zIndex: 999 }}>
-          <Space style={{ marginRight: 16 }}>
+        <div className="delivery-admin-actions">
+          <Space wrap>
             <div>
               {selectedRowKeys.length} item(s) selected
             </div>

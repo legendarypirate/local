@@ -326,9 +326,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </Dropdown>
         </Header>
 
-        <Content style={{ margin: '24px 16px 0' }}>
+        <Content style={{ margin: '24px 16px 0', overflow: 'hidden', maxWidth: '100%' }}>
           <Spin spinning={loading || isPending} tip="Ачааллаж байна..." size="large">
-            <div style={{ padding: 24, background: '#fff', minHeight: 360 }}>
+            <div
+              style={{
+                padding: 24,
+                background: '#fff',
+                minHeight: 360,
+                maxWidth: '100%',
+                overflow: 'hidden',
+                boxSizing: 'border-box',
+              }}
+            >
               {children}
             </div>
           </Spin>
