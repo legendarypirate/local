@@ -35,9 +35,8 @@ const DELIVERY_PRINT_STYLES = `
   body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
   .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
   .logo { max-width: 200px; height: auto; margin-bottom: 10px; }
-  .driver-section { margin-top: 16px; }
-  .driver-section.page-break { page-break-before: always; }
-  .driver-title { font-weight: bold; font-size: 14px; margin: 12px 0 8px; border-bottom: 1px solid #999; padding-bottom: 4px; }
+  .driver-section { margin-top: 6px; }
+  .driver-title { font-weight: bold; font-size: 11px; margin: 4px 0 2px; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
   table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 9px; }
   th, td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; }
   th { background-color: #f5f5f5; font-weight: bold; }
@@ -1442,11 +1441,10 @@ export default function DeliveryPage() {
         </div>
       `);
 
-      driverNames.forEach((driverName, driverIndex) => {
+      driverNames.forEach((driverName) => {
         const driverRows = byDriver.get(driverName) ?? [];
-        const sectionClass = driverIndex > 0 ? 'driver-section page-break' : 'driver-section';
         printWindow.document.write(
-          `<div class="${sectionClass}"><div class="driver-title">Жолооч: ${escapePrintHtml(driverName)} (${driverRows.length})</div>`
+          `<div class="driver-section"><div class="driver-title">Жолооч: ${escapePrintHtml(driverName)} (${driverRows.length})</div>`
         );
         printWindow.document.write(`
           <table>
