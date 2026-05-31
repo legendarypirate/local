@@ -1,7 +1,20 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { App, Button, DatePicker, Select, Space, Table, Tag, Typography } from 'antd';
+import {
+  App,
+  Button,
+  DatePicker,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from 'antd';
 import type { TableColumnsType } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
 
@@ -28,13 +41,24 @@ interface SettlementRow {
   payments?: Payment[];
 }
 
+interface ReportDay {
+  date: string;
+  delivered_total_price?: string | number;
+  for_driver?: string | number;
+  driver_margin?: string | number;
+}
+
 export default function DriverDailySettlementsPage() {
   const { message: msg } = App.useApp();
+  const [form] = Form.useForm();
   const [rows, setRows] = useState<SettlementRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [paySubmitting, setPaySubmitting] = useState(false);
   const [drivers, setDrivers] = useState<{ id: number; username: string }[]>([]);
   const [driverId, setDriverId] = useState<number | null>(null);
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([dayjs().subtract(14, 'day'), dayjs()]);
+  const [payRow, setPayRow] = useState<SettlementRow | null>(null);
+  const [payModalOpen, setPayModalOpen] = useState(false);
 
   const fetchDrivers = useCallback(async () => {
     try {
@@ -46,6 +70,26 @@ export default function DriverDailySettlementsPage() {
     }
   }, []);
 
+  const syncFromReport = useCallback(async (id: number, start: string, end: string) => {
+    const reportRes = await fetch(
+      `${api}/api/mobile/delivery/report?driver_id=${id}&start_date=${start}&end_date=${end}`
+    );
+    if (!reportRes.ok) return;
+    const reportJson = await reportRes.json();
+    const days = (reportJson.data as ReportDay[] | undefined)?.map((item) => ({
+      date: item.date,
+      total_amount: parseInt(String(item.delivered_total_price ?? 0), 10) || 0,
+      driver_salary: parseInt(String(item.for_driver ?? 0), 10) || 0,
+      difference: parseInt(String(item.driver_margin ?? 0), 10) || 0,
+    }));
+    if (!days?.length) return;
+    await fetch(`${api}/api/driver-daily-settlements/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ driver_id: id, days }),
+    });
+  }, []);
+
   const fetchRows = useCallback(async () => {
     if (!driverId) {
       setRows([]);
@@ -55,6 +99,7 @@ export default function DriverDailySettlementsPage() {
     try {
       const start = dateRange[0].format('YYYY-MM-DD');
       const end = dateRange[1].format('YYYY-MM-DD');
+      await syncFromReport(driverId, start, end);
       const res = await fetch(
         `${api}/api/driver-daily-settlements?driver_id=${driverId}&start_date=${start}&end_date=${end}`
       );
@@ -71,7 +116,65 @@ export default function DriverDailySettlementsPage() {
     } finally {
       setLoading(false);
     }
-  }, [driverId, dateRange, msg]);
+  }, [driverId, dateRange, msg, syncFromReport]);
+
+  const openPayModal = (row: SettlementRow) => {
+    setPayRow(row);
+    form.setFieldsValue({
+      amount: row.remaining > 0 ? row.remaining : undefined,
+      note: '',
+    });
+    setPayModalOpen(true);
+  };
+
+  const closePayModal = () => {
+    setPayModalOpen(false);
+    setPayRow(null);
+    form.resetFields();
+  };
+
+  const submitPayment = async () => {
+    if (!payRow || !driverId) return;
+    const values = await form.validateFields();
+    const amount = Math.floor(Number(values.amount));
+    if (!amount || amount <= 0) {
+      msg.error('Зөв дүн оруулна уу');
+      return;
+    }
+    if (amount > payRow.remaining) {
+      msg.error(`Төлбөр хэтэрсэн. Үлдэгдэл: ${payRow.remaining.toLocaleString()} ₮`);
+      return;
+    }
+
+    setPaySubmitting(true);
+    try {
+      const res = await fetch(`${api}/api/driver-daily-settlements/payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          driver_id: driverId,
+          settlement_date: payRow.settlement_date,
+          amount,
+          note: values.note?.trim() || null,
+          total_amount: payRow.total_amount,
+          driver_salary: payRow.driver_salary,
+          difference: payRow.difference,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        msg.success(json.message || 'Төлбөр бүртгэгдлээ');
+        closePayModal();
+        await fetchRows();
+      } else {
+        msg.error(json.message || 'Алдаа');
+      }
+    } catch {
+      msg.error('Сервертэй холбогдож чадсангүй');
+    } finally {
+      setPaySubmitting(false);
+    }
+  };
 
   useEffect(() => {
     document.title = 'Жолоочийн өдрийн тооцоо';
@@ -136,13 +239,18 @@ export default function DriverDailySettlementsPage() {
         ),
     },
     {
-      title: 'Төлбөрүүд',
-      key: 'payments',
-      ellipsis: true,
+      title: 'Үйлдэл',
+      key: 'action',
+      width: 130,
+      fixed: 'right',
       render: (_, r) =>
-        (r.payments ?? [])
-          .map((p) => `${Number(p.amount).toLocaleString()}₮`)
-          .join(', ') || '—',
+        r.total_amount > 0 && r.remaining > 0 ? (
+          <Button type="primary" size="small" onClick={() => openPayModal(r)}>
+            Төлбөр бүртгэх
+          </Button>
+        ) : (
+          <span style={{ color: '#999' }}>—</span>
+        ),
     },
   ];
 
@@ -158,9 +266,12 @@ export default function DriverDailySettlementsPage() {
 
   return (
     <div style={{ maxWidth: 1200 }}>
-      <Typography.Title level={4} style={{ marginBottom: 16 }}>
+      <Typography.Title level={4} style={{ marginBottom: 8 }}>
         Жолоочийн өдрийн тооцоо (Дүн төлбөр)
       </Typography.Title>
+      <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+        Админ энд хэсэгчлэн эсвэл бүрэн төлбөр бүртгэнэ. Жолооч апп дээр зөвхөн үлдэгдлээ харна.
+      </Typography.Paragraph>
       <Space wrap style={{ marginBottom: 16 }}>
         <Select
           showSearch
@@ -196,7 +307,7 @@ export default function DriverDailySettlementsPage() {
         loading={loading}
         columns={columns}
         dataSource={rows}
-        scroll={{ x: 1000 }}
+        scroll={{ x: 1100 }}
         pagination={{ pageSize: 31 }}
         expandable={{
           expandedRowRender: (r) =>
@@ -214,6 +325,59 @@ export default function DriverDailySettlementsPage() {
             ),
         }}
       />
+
+      <Modal
+        title={payRow ? `Төлбөр бүртгэх — ${payRow.settlement_date}` : 'Төлбөр бүртгэх'}
+        open={payModalOpen}
+        onCancel={closePayModal}
+        onOk={submitPayment}
+        okText="Хадгалах"
+        cancelText="Болих"
+        confirmLoading={paySubmitting}
+        destroyOnClose
+      >
+        {payRow && (
+          <>
+            <Typography.Paragraph>
+              Дүн (төлөх): <strong>{payRow.total_amount.toLocaleString()} ₮</strong>
+              <br />
+              Төлсөн: <strong>{payRow.amount_paid.toLocaleString()} ₮</strong>
+              <br />
+              Үлдэгдэл:{' '}
+              <strong style={{ color: '#cf1322' }}>{payRow.remaining.toLocaleString()} ₮</strong>
+            </Typography.Paragraph>
+            <Form form={form} layout="vertical">
+              <Form.Item
+                name="amount"
+                label="Энэ удаагийн төлбөр (₮)"
+                rules={[{ required: true, message: 'Дүн оруулна уу' }]}
+              >
+                <InputNumber
+                  min={1}
+                  max={payRow.remaining}
+                  style={{ width: '100%' }}
+                  formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  parser={(v) => Number(String(v ?? '').replace(/[^\d]/g, '')) as unknown as 1}
+                />
+              </Form.Item>
+              <Space style={{ marginBottom: 12 }}>
+                <Button
+                  size="small"
+                  onClick={() => form.setFieldsValue({ amount: payRow.remaining })}
+                >
+                  Бүтэн үлдэгдэл ({payRow.remaining.toLocaleString()} ₮)
+                </Button>
+              </Space>
+              <Form.Item name="note" label="Тайлбар (заавал биш)">
+                <Input.TextArea rows={2} placeholder="Жишээ: дансаар шилжүүлсэн" />
+              </Form.Item>
+            </Form>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Жишээ: Дүн 58,000₮, 46,000₮ бүртгэвэл үлдэгдэл 12,000₮ болно.
+            </Typography.Text>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
