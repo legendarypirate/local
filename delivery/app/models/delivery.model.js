@@ -56,6 +56,11 @@ module.exports = (sequelize, Sequelize) => {
         allowNull: true,
         defaultValue: null
       },
+      service_region_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        defaultValue: null,
+      },
       is_reported: {
         type: Sequelize.BOOLEAN,
         allowNull: false,

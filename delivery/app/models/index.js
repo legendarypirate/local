@@ -355,6 +355,15 @@ db.deliveries.belongsTo(db.khoroos, {
   as: 'khoroo', // delivery.khoroo
 });
 
+db.deliveries.belongsTo(db.service_regions, {
+  foreignKey: 'service_region_id',
+  as: 'service_region',
+});
+db.service_regions.hasMany(db.deliveries, {
+  foreignKey: 'service_region_id',
+  as: 'deliveries',
+});
+
 db.delivery_zones.belongsTo(db.users, { foreignKey: 'driver_id', as: 'driver' });
 db.users.hasMany(db.delivery_zones, { foreignKey: 'driver_id', as: 'delivery_zones' });
 

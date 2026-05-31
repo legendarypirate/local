@@ -71,7 +71,7 @@ export default function ServiceRegionsAdminPage() {
   const [districts, setDistricts] = useState<District[]>([]);
   const [districtKhoroos, setDistrictKhoroos] = useState<KhorooRow[]>([]);
   const [selectedDistrictId, setSelectedDistrictId] = useState<number | null>(null);
-  const [newKhorooName, setNewKhorooName] = useState('');
+  const [seedingKhoroos, setSeedingKhoroos] = useState(false);
 
   const fetchRegions = useCallback(async () => {
     setLoading(true);
@@ -101,8 +101,36 @@ export default function ServiceRegionsAdminPage() {
   const fetchKhoroosForDistrict = useCallback(async (districtId: number) => {
     const res = await fetch(`${api}/api/khoroo?region_id=${districtId}`);
     const json = await res.json();
-    if (json.success) setDistrictKhoroos(json.data);
+    if (json.success) {
+      const byNum = new Map<number, KhorooRow>();
+      (json.data as KhorooRow[]).forEach((k) => {
+        const n = parseInt(String(k.name), 10);
+        if (n >= 1 && n <= 50 && !byNum.has(n)) byNum.set(n, { ...k, name: String(n) });
+      });
+      setDistrictKhoroos(
+        [...byNum.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v)
+      );
+    }
   }, []);
+
+  const seedStandardKhoroos = async () => {
+    setSeedingKhoroos(true);
+    try {
+      const res = await fetch(`${api}/api/khoroo/seed-standard`, { method: 'POST' });
+      const json = await res.json();
+      if (json.success) {
+        msg.success(json.message || '1–50 хороо сэргээгдлээ');
+        fetchRegions();
+        if (selectedDistrictId) fetchKhoroosForDistrict(selectedDistrictId);
+      } else {
+        msg.error(json.message || 'Алдаа');
+      }
+    } catch {
+      msg.error('Хороо сэргээхэд алдаа');
+    } finally {
+      setSeedingKhoroos(false);
+    }
+  };
 
   useEffect(() => {
     document.title = 'Хүргэлтийн бүс';
@@ -182,7 +210,7 @@ export default function ServiceRegionsAdminPage() {
         seen.add(key);
         items.push({
           key,
-          title: `${d.district_name} — ${k.name}`,
+          title: `${d.district_name} — ${k.name}-р хороо`,
           disabled:
             k.assigned_service_region_id != null &&
             Number(k.assigned_service_region_id) !== Number(activeRegion?.id),
@@ -224,23 +252,6 @@ export default function ServiceRegionsAdminPage() {
     if (json.success) {
       msg.success('Устгагдлаа');
       fetchRegions();
-    } else {
-      msg.error(json.message || 'Алдаа');
-    }
-  };
-
-  const addKhorooToDistrict = async () => {
-    if (!selectedDistrictId || !newKhorooName.trim()) return;
-    const res = await fetch(`${api}/api/khoroo`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newKhorooName.trim(), region_id: selectedDistrictId }),
-    });
-    const json = await res.json();
-    if (json.success) {
-      msg.success('Хороо нэмэгдлээ');
-      setNewKhorooName('');
-      fetchKhoroosForDistrict(selectedDistrictId);
     } else {
       msg.error(json.message || 'Алдаа');
     }
@@ -293,7 +304,7 @@ export default function ServiceRegionsAdminPage() {
   const regionsTab = (
     <>
       <Typography.Paragraph type="secondary">
-        1р бүс, 2р бүс гэх мэт бүс үүсгээд дүүргийн хороонуудыг хуваарилна. Бүс бүрт жолооч онооно.{' '}
+        1р бүс, 2р бүс гэх мэт бүс үүсгээд дүүрэг + 1–50-р хороог хуваарилна. Бүсийн жолооч нь зөвхөн санал — хүргэлтийг админ «Хүргэлт» хуудсаас гараар онооно.{' '}
         <strong>Орон нутаг</strong> бүс анхдагчаар үүссэн — хаяг сонгохдоо «Орон нутаг» сонговол энэ бүсийн жолоочид
         очно.
       </Typography.Paragraph>
@@ -307,13 +318,23 @@ export default function ServiceRegionsAdminPage() {
   const districtsTab = (
     <>
       <Typography.Paragraph type="secondary">
-        Эхлээд 6 дүүргийн хороонуудыг бүртгэнэ (жишээ: Баянзүрх — 1-р хороо). Дараа нь дээрх бүс рүү хороо хуваарилна.
+        Дүүрэг бүрт зөвхөн <strong>1–50-р хороо</strong> (стандарт). Хуучин давхардсан хороог устгаж, дахин үүсгэнэ. Дараа нь
+        «Бүс & жолооч» таб дээр бүс рүү хуваарилна.
       </Typography.Paragraph>
+      <Button
+        type="primary"
+        danger
+        loading={seedingKhoroos}
+        onClick={seedStandardKhoroos}
+        style={{ marginBottom: 16 }}
+      >
+        Хороо 1–50 сэргээх (хуучин өгөгдөл устгана)
+      </Button>
       <Row gutter={16}>
         <Col xs={24} md={8}>
           <Card title="Дүүрэг" size="small">
             <Select
-              style={{ width: '100%', marginBottom: 12 }}
+              style={{ width: '100%' }}
               placeholder="Дүүрэг сонгох"
               value={selectedDistrictId ?? undefined}
               onChange={(v) => {
@@ -322,27 +343,18 @@ export default function ServiceRegionsAdminPage() {
               }}
               options={districts.map((d) => ({ value: d.id, label: d.name }))}
             />
-            <Input
-              placeholder="Шинэ хорооны нэр (жишээ: 1-р хороо)"
-              value={newKhorooName}
-              onChange={(e) => setNewKhorooName(e.target.value)}
-              onPressEnter={addKhorooToDistrict}
-            />
-            <Button type="primary" block style={{ marginTop: 8 }} onClick={addKhorooToDistrict} disabled={!selectedDistrictId}>
-              Хороо нэмэх
-            </Button>
           </Card>
         </Col>
         <Col xs={24} md={16}>
-          <Card title="Хороонууд" size="small">
+          <Card title="Хороо (1–50)" size="small">
             <Table
               rowKey="id"
               size="small"
               pagination={false}
               dataSource={districtKhoroos}
               columns={[
-                { title: 'ID', dataIndex: 'id', width: 60 },
-                { title: 'Нэр', dataIndex: 'name' },
+                { title: 'Хороо', dataIndex: 'name', render: (n) => `${n}-р хороо` },
+                { title: 'ID', dataIndex: 'id', width: 70 },
               ]}
             />
           </Card>
@@ -357,7 +369,7 @@ export default function ServiceRegionsAdminPage() {
       <Tabs
         items={[
           { key: 'regions', label: 'Бүс & жолооч', children: regionsTab },
-          { key: 'districts', label: 'Дүүрэг & хороо бүртгэл', children: districtsTab },
+          { key: 'districts', label: 'Хороо 1–50', children: districtsTab },
         ]}
       />
 

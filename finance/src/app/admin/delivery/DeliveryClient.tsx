@@ -2,7 +2,7 @@
 
 import './delivery-admin.css';
 import React, { useState, useMemo, useRef, useEffect, Suspense } from 'react';
-import { Table, Button, Space, Input, DatePicker, Drawer, Form, Select, Tag, Modal, App, Checkbox, message, InputNumber, List, Row, Col, Tooltip, Image, Alert } from 'antd';
+import { Table, Button, Space, Input, DatePicker, Drawer, Form, Select, Tag, Modal, App, Checkbox, message, InputNumber, List, Row, Col, Tooltip, Image, Alert, Typography } from 'antd';
 import type { CheckboxProps } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, HistoryOutlined, PictureOutlined } from '@ant-design/icons';
@@ -129,6 +129,13 @@ interface Delivery {
     is_default?: boolean;
   } | null;
   driver_report_price?: number;
+  service_region_id?: number | null;
+  service_region?: {
+    id: number;
+    name: string;
+    driver_id?: number | null;
+    driver?: { id: number; username: string } | null;
+  } | null;
 }
 
 const products = [
@@ -214,6 +221,9 @@ export default function DeliveryPage() {
   const [khoroos, setKhoroos] = useState<{ id: number; name: string }[]>([]);
   const [khoroosLoading, setKhoroosLoading] = useState(false);
   const [khorooFilter, setKhorooFilter] = useState<number | null>(null);
+  const [serviceRegionFilter, setServiceRegionFilter] = useState<number | null>(null);
+  const [unassignedOnly, setUnassignedOnly] = useState(false);
+  const [serviceRegions, setServiceRegions] = useState<{ id: number; name: string; driver_id?: number | null }[]>([]);
   const [formKhoroos, setFormKhoroos] = useState<{ id: number; name: string }[]>([]);
   const [formKhoroosLoading, setFormKhoroosLoading] = useState(false);
   const [selectedKhorooId, setSelectedKhorooId] = useState<number | null>(null);
@@ -417,12 +427,19 @@ export default function DeliveryPage() {
       ),
     },
     {
+      title: 'Бүс',
+      key: 'service_region',
+      width: 110,
+      ellipsis: true,
+      render: (_, record) => record.service_region?.name || '—',
+    },
+    {
       title: 'Жолооч нэр',
       dataIndex: ['driver', 'username'],
       key: 'driver',
       width: 100,
       ellipsis: true,
-      render: (_, record) => record.driver?.username || '-'
+      render: (_, record) => record.driver?.username || '—',
     },
     {
       title: 'Үйлдэл',
@@ -603,6 +620,17 @@ export default function DeliveryPage() {
     }
   };
 
+  const normalizeKhoroos1to50 = (raw: { id: number; name: string }[]) => {
+    const byNum = new Map<number, { id: number; name: string }>();
+    for (const k of raw) {
+      const n = parseInt(String(k.name), 10);
+      if (n >= 1 && n <= 50 && !byNum.has(n)) {
+        byNum.set(n, { id: k.id, name: String(n) });
+      }
+    }
+    return [...byNum.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
+  };
+
   const fetchKhoroos = async (regionId: number, isForForm: boolean = false): Promise<{ id: number; name: string }[]> => {
     if (!regionId) {
       if (isForForm) {
@@ -621,7 +649,7 @@ export default function DeliveryPage() {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/khoroo?region_id=${regionId}`);
       const result = await response.json();
       if (result.success) {
-        const khoroosData = result.data || [];
+        const khoroosData = normalizeKhoroos1to50(result.data || []);
         if (isForForm) {
           setFormKhoroos(khoroosData);
         } else {
@@ -991,6 +1019,12 @@ export default function DeliveryPage() {
           await fetchDistricts();
         }
 
+        if (serviceRegions.length === 0) {
+          const srRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/service-region`);
+          const srJson = await srRes.json();
+          if (srJson.success) setServiceRegions(srJson.data);
+        }
+
         // Build delivery URL with filters
         let url = `${process.env.NEXT_PUBLIC_API_URL}/api/delivery?page=${pagination.current}&limit=${pagination.pageSize}`;
 
@@ -1012,6 +1046,13 @@ export default function DeliveryPage() {
           url += `&driver_id=${driverFilter}`;
         }
 
+        if (serviceRegionFilter) {
+          url += `&service_region_id=${serviceRegionFilter}`;
+        }
+
+        if (unassignedOnly) {
+          url += '&unassigned=1';
+        }
 
         if (phoneFilter) {
           url += `&phone=${phoneFilter}`;
@@ -1039,7 +1080,7 @@ export default function DeliveryPage() {
     };
 
     fetchAllData();
-  }, [pagination.current, pagination.pageSize, merchantFilter, selectedStatuses, phoneFilter, dateRange, selectedMerchantId, driverFilter, districtFilter, khorooFilter, refreshKey, statusIdsParam]);
+  }, [pagination.current, pagination.pageSize, merchantFilter, selectedStatuses, phoneFilter, dateRange, selectedMerchantId, driverFilter, districtFilter, khorooFilter, serviceRegionFilter, unassignedOnly, refreshKey, statusIdsParam]);
 
 
   const rowSelection = {
@@ -1056,13 +1097,16 @@ export default function DeliveryPage() {
       return null;
     }
     try {
-      const q = isR ? 'is_rural=true' : `khoroo_id=${kid}`;
+      const distId = form.getFieldValue('dist_id');
+      const q = isR
+        ? 'is_rural=true'
+        : `khoroo_id=${kid}${distId != null ? `&dist_id=${distId}` : ''}`;
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/service-region/lookup?${q}`);
       const json = await res.json();
       if (json.success && json.data) {
         return {
           zone_name: json.data.service_region_name as string,
-          driver_username: (json.data.driver_username as string | null) ?? null,
+          driver_username: null,
         };
       }
     } catch {
@@ -1281,19 +1325,12 @@ export default function DeliveryPage() {
 
       if (result.success) {
         const sra = result.service_region_assignment;
-        const za = result.zone_assignment;
-        if (sra?.driver_username) {
+        if (sra?.service_region_name) {
           msg.success(
-            `Амжилттай. Бүс «${sra.service_region_name}» — жолооч: ${sra.driver_username} оноогдлоо.`
-          );
-        } else if (sra?.service_region_name) {
-          msg.success(`Амжилттай. Бүс: ${sra.service_region_name} (жолооч оноогдоогүй).`);
-        } else if (za?.driver_username) {
-          msg.success(
-            `Амжилттай. Газрын зураг бүс «${za.zone_name}» — жолооч: ${za.driver_username} оноогдлоо.`
+            `Амжилттай (Шинэ). «${sra.service_region_name}» бүсэд орлоо — админ жолооч онооно.`
           );
         } else {
-          msg.success('Амжилттай бүртгэгдлээ');
+          msg.success('Амжилттай бүртгэгдлээ (Шинэ). Бүс олдсонгүй.');
         }
         setRefreshKey(prev => prev + 1);
         form.resetFields();
@@ -1567,8 +1604,20 @@ export default function DeliveryPage() {
       const result = await response.json();
 
       if (result.success) {
-        setDrivers(result.data); // Set the list of drivers
-        setIsModalVisible(true); // Open the modal
+        setDrivers(result.data);
+        const selectedRows = deliveryData.filter((d) => selectedRowKeys.includes(d.id));
+        const regionIds = new Set(
+          selectedRows.map((d) => d.service_region_id).filter((id): id is number => id != null)
+        );
+        if (regionIds.size === 1) {
+          const sr = serviceRegions.find((s) => s.id === [...regionIds][0]);
+          const rowSr = selectedRows[0]?.service_region;
+          const suggestedDriverId = sr?.driver_id ?? rowSr?.driver_id ?? rowSr?.driver?.id;
+          setSelectedDriverId(suggestedDriverId ?? null);
+        } else {
+          setSelectedDriverId(null);
+        }
+        setIsModalVisible(true);
       } else {
         alert('Failed to load drivers.');
       }
@@ -1605,23 +1654,13 @@ export default function DeliveryPage() {
       const result = await response.json();
 
       if (result.success) {
-        // Close the modal and reset the state
         setIsModalVisible(false);
         setSelectedDriverId(null);
-        alert('Deliveries allocated to the driver successfully.');
-
-        // Fetch updated delivery data here to refresh the table
-        const updatedDeliveriesResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/delivery`);
-        const updatedDeliveries = await updatedDeliveriesResponse.json();
-
-        if (updatedDeliveries.success) {
-          // Update the state with the new deliveries data
-          setDeliveryData(updatedDeliveries.data);
-        } else {
-          alert('Failed to fetch updated deliveries data.');
-        }
+        setSelectedRowKeys([]);
+        setRefreshKey((k) => k + 1);
+        msg.success(result.message || 'Жолооч оноогдлоо');
       } else {
-        alert('Failed to allocate deliveries.');
+        msg.error(result.message || 'Жолооч онооход алдаа');
       }
     } catch (error) {
       console.error('Error allocating deliveries:', error);
@@ -1705,6 +1744,25 @@ export default function DeliveryPage() {
           <>
             {/* Add this to your filter section with other filters */}
             <Select
+              placeholder="Бүсээр шүүх"
+              className="delivery-filter-control"
+              value={serviceRegionFilter ?? undefined}
+              onChange={(v) => setServiceRegionFilter(v ?? null)}
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={serviceRegions.map((sr) => ({
+                value: sr.id,
+                label: sr.name,
+              }))}
+            />
+            <Checkbox
+              checked={unassignedOnly}
+              onChange={(e) => setUnassignedOnly(e.target.checked)}
+            >
+              Жолоочгүй
+            </Checkbox>
+            <Select
               placeholder="Дүүргээр шүүх"
               className="delivery-filter-control"
               value={districtFilter}
@@ -1736,7 +1794,7 @@ export default function DeliveryPage() {
               >
                 {khoroos.map((khoroo) => (
                   <Option key={khoroo.id} value={khoroo.id}>
-                    {khoroo.name}
+                    {khoroo.name}-р хороо
                   </Option>
                 ))}
               </Select>
@@ -1952,11 +2010,7 @@ export default function DeliveryPage() {
               showIcon
               style={{ marginBottom: 16 }}
               message={`Бүс: ${zonePreview.zone_name}`}
-              description={
-                zonePreview.driver_username
-                  ? `Энэ хаяг бүсэд орно — хадгалахад жолооч «${zonePreview.driver_username}» автоматаар оноогдоно.`
-                  : 'Энэ хаяг бүсэд орно.'
-              }
+              description="Хадгалахад энэ бүсэд орно (Шинэ). Жолоочийг админ дараа гараар онооно."
             />
           )}
 
@@ -2034,7 +2088,7 @@ export default function DeliveryPage() {
             >
               {formKhoroos.map((khoroo) => (
                 <Select.Option key={khoroo.id} value={khoroo.id}>
-                  {khoroo.name}
+                  {khoroo.name}-р хороо
                 </Select.Option>
               ))}
             </Select>
@@ -2190,7 +2244,7 @@ export default function DeliveryPage() {
               onClick={handleAllocateToDriver}
               disabled={selectedRowKeys.length === 0}
             >
-              Allocate to Driver
+              Жолооч оноох
             </Button>
             <Button
               type="primary"
@@ -2434,16 +2488,19 @@ export default function DeliveryPage() {
         </div>
       )}
       <Modal
-        title="Select Driver"
+        title="Жолооч оноох"
         open={isModalVisible}
         onCancel={() => setIsModalVisible(false)}
         onOk={handleSaveAllocation}
-        okText="Save"
-        cancelText="Cancel"
+        okText="Хадгалах"
+        cancelText="Болих"
       >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          Сонгосон хүргэлтүүд гараар жолоочид оноогдоно (төлөв: хуваарилсан).
+        </Typography.Paragraph>
         <Select
           style={{ width: '100%' }}
-          placeholder="Select a driver"
+          placeholder="Жолооч сонгох"
           onChange={handleDriverSelection}
           value={selectedDriverId}
           showSearch

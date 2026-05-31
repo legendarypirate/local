@@ -265,20 +265,27 @@ exports.create = async (req, res) => {
       });
     }
 
-    let driverId = null;
-    let matchedZone = null;
     let matchedServiceRegion = null;
-    const zoneController = require("./delivery_zone.controller.js");
     const serviceRegionCtrl = require("./service_region.controller.js");
     const { geocodeAddress } = require("../utils/geocode.js");
+    const Khoroo = db.khoroos;
+
+    if (!isRural) {
+      const khorooRow = await Khoroo.findByPk(req.body.khoroo_id, { transaction: t });
+      if (!khorooRow || khorooRow.region_id !== parseInt(req.body.dist_id, 10)) {
+        await t.rollback();
+        return res.status(400).json({
+          success: false,
+          message: 'Сонгосон хороо энэ дүүрэгт хамаарахгүй байна.',
+        });
+      }
+    }
 
     matchedServiceRegion = await serviceRegionCtrl.findForDelivery({
       is_rural: isRural,
       khoroo_id: req.body.khoroo_id,
+      dist_id: req.body.dist_id,
     });
-    if (matchedServiceRegion?.driver_id) {
-      driverId = matchedServiceRegion.driver_id;
-    }
 
     let lat = req.body.latitude != null ? parseFloat(req.body.latitude) : null;
     let lng = req.body.longitude != null ? parseFloat(req.body.longitude) : null;
@@ -291,12 +298,7 @@ exports.create = async (req, res) => {
       }
     }
 
-    if (!driverId && lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
-      matchedZone = await zoneController.findZoneByPoint(lat, lng);
-      if (matchedZone) driverId = matchedZone.driver_id;
-    }
-
-    const initialStatus = driverId ? 2 : 1;
+    const initialStatus = 1;
 
     const defaultSetting = await priceSettingCtrl.getDefaultSetting();
     const newDel = {
@@ -311,7 +313,8 @@ exports.create = async (req, res) => {
       is_rural: req.body.is_rural ?? false,
       price: req.body.price,
       comment: req.body.comment,
-      driver_id: driverId,
+      driver_id: null,
+      service_region_id: matchedServiceRegion?.id ?? null,
       latitude: lat,
       longitude: lng,
       delivery_price: defaultSetting ? defaultSetting.merchant_price : 6000,
@@ -324,7 +327,7 @@ exports.create = async (req, res) => {
       {
         merchant_id: req.body.merchant_id,
         delivery_id: delivery.id,
-        driver_id: driverId,
+        driver_id: null,
         status: initialStatus,
       },
       { transaction: t }
@@ -359,15 +362,7 @@ exports.create = async (req, res) => {
       payload.service_region_assignment = {
         service_region_id: matchedServiceRegion.id,
         service_region_name: matchedServiceRegion.name,
-        driver_id: matchedServiceRegion.driver_id,
-        driver_username: matchedServiceRegion.driver?.username ?? null,
-      };
-    } else if (matchedZone) {
-      payload.zone_assignment = {
-        zone_id: matchedZone.id,
-        zone_name: matchedZone.name,
-        driver_id: matchedZone.driver_id,
-        driver_username: matchedZone.driver?.username ?? null,
+        status: initialStatus,
       };
     }
     res.json(payload);
@@ -505,26 +500,36 @@ exports.importExcelDeliveries = async (req, res) => {
   const t = await db.sequelize.transaction();
 
   try {
-    // 🔹 Bulk update deliveries: assign driver and update status
-    await Delivery.update(
-      {
-        driver_id,
-        status: 2, // allocated
-      },
-      {
-        where: { id: delivery_ids },
-        transaction: t,
-      }
-    );
-
-    // 🔹 Fetch deliveries to get merchant_id for each (for history)
     const deliveries = await Delivery.findAll({
-      where: { id: delivery_ids },
+      where: {
+        id: delivery_ids,
+        [Op.or]: [{ driver_id: null }, { driver_id: 0 }],
+      },
       attributes: ["id", "merchant_id"],
       transaction: t,
     });
 
-    // 🔹 Create a history record for each delivery with status = 2
+    if (!deliveries.length) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Сонгосон хүргэлтэд жолоочгүй мөр байхгүй байна.",
+      });
+    }
+
+    const idsToAssign = deliveries.map((d) => d.id);
+
+    await Delivery.update(
+      {
+        driver_id,
+        status: 2,
+      },
+      {
+        where: { id: idsToAssign },
+        transaction: t,
+      }
+    );
+
     const historyRecords = deliveries.map((d) => ({
       merchant_id: d.merchant_id,
       delivery_id: d.id,
@@ -538,7 +543,8 @@ exports.importExcelDeliveries = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Deliveries allocated, status updated, and history recorded successfully.",
+      message: `${idsToAssign.length} хүргэлт жолоочид оноогдлоо.`,
+      updated: idsToAssign.length,
     });
   } catch (error) {
     await t.rollback();
@@ -639,6 +645,8 @@ exports.findAll = async (req, res) => {
       phone,
       dist_id,
       khoroo_id,
+      service_region_id,
+      unassigned,
       start_date,
       end_date,
     } = req.query;
@@ -652,6 +660,13 @@ exports.findAll = async (req, res) => {
     if (driver_id) where.driver_id = driver_id;
     if (dist_id) where.dist_id = dist_id;
     if (khoroo_id) where.khoroo_id = khoroo_id;
+    if (service_region_id) {
+      const srid = parseInt(service_region_id, 10);
+      if (!Number.isNaN(srid)) where.service_region_id = srid;
+    }
+    if (unassigned === '1' || unassigned === 'true') {
+      where.driver_id = null;
+    }
     if (phone) where.phone = { [Op.like]: `%${phone}%` };
 
     if (status_ids) {
@@ -680,6 +695,13 @@ exports.findAll = async (req, res) => {
         { model: User, as: "merchant", attributes: ["username"] },
         { model: Status, as: "status_name", attributes: ["status", "color"] },
         { model: User, as: "driver", attributes: ["username"] },
+        {
+          model: db.service_regions,
+          as: "service_region",
+          attributes: ["id", "name", "driver_id"],
+          required: false,
+          include: [{ model: User, as: "driver", attributes: ["id", "username"], required: false }],
+        },
         priceSettingInclude,
       ],
       order: [["id", "DESC"]],

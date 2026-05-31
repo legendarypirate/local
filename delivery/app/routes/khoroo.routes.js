@@ -8,6 +8,8 @@ module.exports = app => {
   
     // Retrieve all Khoroos
     router.get("/", khoroo.findAll);
+
+    router.post("/seed-standard", khoroo.seedStandard);
   
     // Retrieve a single Khoroo with id
     router.get("/:id", khoroo.findOne);

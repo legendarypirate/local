@@ -2,6 +2,7 @@ const db = require("../models");
 const Khoroo = db.khoroos;
 const Region = db.regions;
 const Op = db.Sequelize.Op;
+const { sortKhoroosByNumber, seedStandardKhoroos } = require("../utils/standard_khoroos");
 
 // Create and Save a new Khoroo
 exports.create = async (req, res) => {
@@ -54,7 +55,7 @@ exports.findAll = async (req, res) => {
       where.region_id = region_id;
     }
 
-    const data = await Khoroo.findAll({
+    const rows = await Khoroo.findAll({
       where,
       include: [
         {
@@ -63,8 +64,8 @@ exports.findAll = async (req, res) => {
           attributes: ['id', 'name']
         }
       ],
-      order: [['name', 'ASC']]
     });
+    const data = sortKhoroosByNumber(rows.map((r) => r.toJSON()));
 
     res.json({
       success: true,
@@ -158,6 +159,23 @@ exports.update = async (req, res) => {
       success: false,
       message: "Error updating Khoroo with id=" + id,
       error: err.message,
+    });
+  }
+};
+
+/** Wipe custom khoroos; seed 1–50 for each district. Clears service-region links. */
+exports.seedStandard = async (req, res) => {
+  try {
+    const stats = await seedStandardKhoroos();
+    res.json({
+      success: true,
+      message: `Дүүрэг бүрт ${stats.khoroosPerDistrict} хороо (1–${stats.khoroosPerDistrict}) үүслээ`,
+      data: stats,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to seed standard khoroos',
     });
   }
 };

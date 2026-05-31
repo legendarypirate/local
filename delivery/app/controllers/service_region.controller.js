@@ -13,7 +13,7 @@ async function ensureRuralDefault() {
 }
 
 /** Resolve service region + driver for new delivery */
-exports.findForDelivery = async ({ is_rural, khoroo_id }) => {
+exports.findForDelivery = async ({ is_rural, khoroo_id, dist_id }) => {
   await ensureRuralDefault();
   if (is_rural) {
     return ServiceRegion.findOne({
@@ -23,6 +23,10 @@ exports.findForDelivery = async ({ is_rural, khoroo_id }) => {
   }
   const kid = parseInt(khoroo_id, 10);
   if (!kid || Number.isNaN(kid)) return null;
+  const khorooRow = await Khoroo.findByPk(kid);
+  if (!khorooRow) return null;
+  const did = dist_id != null ? parseInt(dist_id, 10) : null;
+  if (did && !Number.isNaN(did) && khorooRow.region_id !== did) return null;
   const link = await ServiceRegionKhoroo.findOne({
     where: { khoroo_id: kid },
     include: [
@@ -173,7 +177,8 @@ exports.lookup = async (req, res) => {
   try {
     const is_rural = req.query.is_rural === 'true' || req.query.is_rural === '1';
     const khoroo_id = req.query.khoroo_id;
-    const sr = await exports.findForDelivery({ is_rural, khoroo_id });
+    const dist_id = req.query.dist_id;
+    const sr = await exports.findForDelivery({ is_rural, khoroo_id, dist_id });
     if (!sr) {
       return res.json({ success: true, data: null, message: 'No service region matched' });
     }
@@ -229,15 +234,30 @@ exports.khoroosGrouped = async (req, res) => {
     assignments.forEach((a) => {
       assignMap[a.khoroo_id] = a.service_region_id;
     });
-    const data = districts.map((d) => ({
-      district_id: d.id,
-      district_name: d.name,
-      khoroos: (d.khoroos || []).map((k) => ({
-        id: k.id,
-        name: k.name,
-        assigned_service_region_id: assignMap[k.id] ?? null,
-      })),
-    }));
+    const { KHOROO_MIN, KHOROO_MAX } = require('../utils/standard_khoroos');
+    const data = districts.map((d) => {
+      const byNum = new Map();
+      (d.khoroos || []).forEach((k) => {
+        const num = parseInt(String(k.name), 10);
+        if (Number.isNaN(num) || num < KHOROO_MIN || num > KHOROO_MAX) return;
+        const existing = byNum.get(num);
+        if (!existing || k.id < existing.id) {
+          byNum.set(num, {
+            id: k.id,
+            name: String(num),
+            assigned_service_region_id: assignMap[k.id] ?? null,
+          });
+        }
+      });
+      const khoroos = [...byNum.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([, v]) => v);
+      return {
+        district_id: d.id,
+        district_name: d.name,
+        khoroos,
+      };
+    });
     res.json({ success: true, data });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
