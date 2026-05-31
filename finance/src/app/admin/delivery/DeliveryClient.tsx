@@ -23,6 +23,50 @@ function normalizeDeliveryPhone(raw: unknown): string {
   return String(raw).replace(/\D/g, '');
 }
 
+const RETURN_PRINT_STATUS_NAMES = [
+  'буцаасан',
+  'утсаа аваагүй',
+  'хаягаар очсон',
+  'дараа авна',
+  'маргааш авна',
+];
+
+const DELIVERY_PRINT_STYLES = `
+  body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+  .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+  .logo { max-width: 200px; height: auto; margin-bottom: 10px; }
+  .driver-section { margin-top: 16px; }
+  .driver-section.page-break { page-break-before: always; }
+  .driver-title { font-weight: bold; font-size: 14px; margin: 12px 0 8px; border-bottom: 1px solid #999; padding-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 9px; }
+  th, td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; }
+  th { background-color: #f5f5f5; font-weight: bold; }
+  .items-cell { max-width: 200px; white-space: normal; }
+  td.merchant-by-status {
+    font-weight: 600;
+    background-color: transparent !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  @page { size: A4 portrait; margin: 10mm; }
+`;
+
+function printMerchantCellStyle(color: string | undefined): string {
+  if (!color || typeof color !== 'string') return 'color: #111; background-color: transparent;';
+  const c = color.trim();
+  if (!/^#[0-9A-Fa-f]{3,8}$/.test(c) && !/^[a-zA-Z]+$/.test(c)) {
+    return 'color: #111; background-color: transparent;';
+  }
+  return `color: ${c}; background-color: transparent;`;
+}
+
+function escapePrintHtml(text: string): string {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 interface Good {
   name: string;
 }
@@ -182,6 +226,7 @@ export default function DeliveryPage() {
   const [deliveryPriceSubmitting, setDeliveryPriceSubmitting] = useState(false);
   const [deliveryImageModalOpen, setDeliveryImageModalOpen] = useState(false);
   const [deliveryImageUrl, setDeliveryImageUrl] = useState<string | null>(null);
+  const [returnPrintLoading, setReturnPrintLoading] = useState(false);
   const { modal, message: msg } = App.useApp();
 
   const handleEditClick = async (record: Delivery) => {
@@ -1329,6 +1374,134 @@ export default function DeliveryPage() {
     }
   };
 
+  const getReturnPrintStatusIds = (): number[] => {
+    if (statusList.length === 0) return [5, 6, 7, 8, 9];
+    return statusList
+      .filter((s) => RETURN_PRINT_STATUS_NAMES.includes(s.status.toLowerCase().trim()))
+      .map((s) => s.id);
+  };
+
+  const handlePrintReturns = async () => {
+    setReturnPrintLoading(true);
+    try {
+      const statusIds = getReturnPrintStatusIds();
+      if (statusIds.length === 0) {
+        msg.error('Буцаалтын төлөв олдсонгүй');
+        return;
+      }
+
+      const yesterday = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
+      const apiBase = process.env.NEXT_PUBLIC_API_URL;
+      const url =
+        `${apiBase}/api/delivery?page=1&limit=10000` +
+        `&status_ids=${statusIds.join(',')}` +
+        `&start_date=${yesterday}&end_date=${yesterday}`;
+
+      const res = await fetch(url);
+      const json = await res.json();
+      if (!json.success || !Array.isArray(json.data) || json.data.length === 0) {
+        msg.info(`Өчигдөр (${yesterday}) буцаалтын хүргэлт олдсонгүй`);
+        return;
+      }
+
+      const deliveries = json.data as Delivery[];
+      const ids = deliveries.map((d) => d.id);
+      const itemsMap = await loadAllItemsForPrint(ids);
+      const rowsWithItems = deliveries.map((row) => ({
+        ...row,
+        items: itemsMap[row.id] || [],
+      }));
+
+      const byDriver = new Map<string, typeof rowsWithItems>();
+      for (const row of rowsWithItems) {
+        const driverName = row.driver?.username?.trim() || 'Жолоочгүй';
+        if (!byDriver.has(driverName)) byDriver.set(driverName, []);
+        byDriver.get(driverName)!.push(row);
+      }
+
+      const driverNames = [...byDriver.keys()].sort((a, b) =>
+        a.localeCompare(b, 'mn', { sensitivity: 'base' })
+      );
+
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        msg.error('Хэвлэх цонх нээх боломжгүй');
+        return;
+      }
+
+      printWindow.document.write('<html><head><title>Буцаалт</title>');
+      printWindow.document.write(`<style>${DELIVERY_PRINT_STYLES}</style></head><body>`);
+      printWindow.document.write(`
+        <div class="header" style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <img src="/logoo.png" alt="Logo" class="logo" onerror="this.style.display='none'" style="max-width:120px;height:auto;">
+          <div style="text-align:right;">
+            <div style="font-weight:bold;font-size:16px;">Буцаалт</div>
+            <div style="font-size:13px;">Өдөр: ${yesterday}</div>
+            <div style="font-size:12px;margin-top:4px;">Нийт: ${rowsWithItems.length} хүргэлт</div>
+          </div>
+        </div>
+      `);
+
+      driverNames.forEach((driverName, driverIndex) => {
+        const driverRows = byDriver.get(driverName) ?? [];
+        const sectionClass = driverIndex > 0 ? 'driver-section page-break' : 'driver-section';
+        printWindow.document.write(
+          `<div class="${sectionClass}"><div class="driver-title">Жолооч: ${escapePrintHtml(driverName)} (${driverRows.length})</div>`
+        );
+        printWindow.document.write(`
+          <table>
+            <thead>
+              <tr>
+                <th>Дэлгүүр</th>
+                <th>Хаяг</th>
+                <th>Утас</th>
+                <th>Төлөв</th>
+                <th>Үнэ</th>
+                <th>Бараа</th>
+                <th>Тайлбар</th>
+              </tr>
+            </thead>
+            <tbody>
+        `);
+
+        driverRows.forEach((row) => {
+          const itemsText =
+            row.items && row.items.length > 0
+              ? row.items
+                  .map((item) => `${item.good?.name || 'Unknown'} (${item.quantity})`)
+                  .join(', ')
+              : 'Бараа байхгүй';
+          const merchantStyle = printMerchantCellStyle(row.status_name?.color);
+          const merchantName = escapePrintHtml(String(row.merchant?.username ?? '-'));
+          const statusLabel = escapePrintHtml(String(row.status_name?.status ?? '-'));
+
+          printWindow.document.write(`
+            <tr>
+              <td class="merchant-by-status" style="${merchantStyle}">${merchantName}</td>
+              <td>${escapePrintHtml(String(row.address ?? ''))}</td>
+              <td>${escapePrintHtml(String(row.phone ?? ''))}</td>
+              <td>${statusLabel}</td>
+              <td>${row.price?.toLocaleString() ?? '0'}₮</td>
+              <td class="items-cell">${escapePrintHtml(itemsText)}</td>
+              <td>${escapePrintHtml(String(row.comment ?? '-'))}</td>
+            </tr>
+          `);
+        });
+
+        printWindow.document.write('</tbody></table></div>');
+      });
+
+      printWindow.document.write('</body></html>');
+      printWindow.document.close();
+      printWindow.print();
+    } catch (error) {
+      console.error('Return print error:', error);
+      msg.error('Буцаалт хэвлэхэд алдаа гарлаа');
+    } finally {
+      setReturnPrintLoading(false);
+    }
+  };
+
   const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && file.name.endsWith('.xlsx')) {
@@ -2234,6 +2407,9 @@ export default function DeliveryPage() {
               disabled={selectedRowKeys.length === 0}
             >
               Үнийн тохиргоо оноох
+            </Button>
+            <Button type="default" loading={returnPrintLoading} onClick={handlePrintReturns}>
+              Буцаалт хэвлэх
             </Button>
             <Button
               type="primary"
