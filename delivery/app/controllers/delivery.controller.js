@@ -257,13 +257,27 @@ exports.create = async (req, res) => {
     const delivery_id = await generateDeliveryId();
 
     let driverId = null;
-    const lat = req.body.latitude != null ? parseFloat(req.body.latitude) : null;
-    const lng = req.body.longitude != null ? parseFloat(req.body.longitude) : null;
-    if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
-      const zoneController = require("./delivery_zone.controller.js");
-      const zone = await zoneController.findZoneByPoint(lat, lng);
-      if (zone) driverId = zone.driver_id;
+    let matchedZone = null;
+    const zoneController = require("./delivery_zone.controller.js");
+    const { geocodeAddress } = require("../utils/geocode.js");
+
+    let lat = req.body.latitude != null ? parseFloat(req.body.latitude) : null;
+    let lng = req.body.longitude != null ? parseFloat(req.body.longitude) : null;
+
+    if ((lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) && req.body.address) {
+      const geo = await geocodeAddress(req.body.address);
+      if (geo) {
+        lat = geo.lat;
+        lng = geo.lng;
+      }
     }
+
+    if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+      matchedZone = await zoneController.findZoneByPoint(lat, lng);
+      if (matchedZone) driverId = matchedZone.driver_id;
+    }
+
+    const initialStatus = driverId ? 2 : 1;
 
     const defaultSetting = await priceSettingCtrl.getDefaultSetting();
     const newDel = {
@@ -273,7 +287,7 @@ exports.create = async (req, res) => {
       address: req.body.address,
       dist_id: req.body.dist_id,
       khoroo_id: req.body.khoroo_id || null,
-      status: 1,
+      status: initialStatus,
       is_paid: req.body.is_paid ?? false,
       is_rural: req.body.is_rural ?? false,
       price: req.body.price,
@@ -287,14 +301,12 @@ exports.create = async (req, res) => {
 
     const delivery = await Delivery.create(newDel, { transaction: t });
 
- await db.histories.create(
+    await db.histories.create(
       {
         merchant_id: req.body.merchant_id,
         delivery_id: delivery.id,
-        driver_id: null, 
-        status: 1, // allowed since allowNull = true
-
-        // allowed since allowNull = true
+        driver_id: driverId,
+        status: initialStatus,
       },
       { transaction: t }
     );
@@ -323,7 +335,16 @@ exports.create = async (req, res) => {
 
     await t.commit();
 
-    res.json({ success: true, data: delivery });
+    const payload = { success: true, data: delivery };
+    if (matchedZone) {
+      payload.zone_assignment = {
+        zone_id: matchedZone.id,
+        zone_name: matchedZone.name,
+        driver_id: matchedZone.driver_id,
+        driver_username: matchedZone.driver?.username ?? null,
+      };
+    }
+    res.json(payload);
   } catch (err) {
     await t.rollback();
     console.error(err);
@@ -335,6 +356,51 @@ exports.create = async (req, res) => {
   }
 };
 
+/** POST { address } or { latitude, longitude } — geocode + zone lookup for mobile/web forms */
+exports.geocodeForZone = async (req, res) => {
+  try {
+    const zoneController = require("./delivery_zone.controller.js");
+    const { geocodeAddress } = require("../utils/geocode.js");
+
+    let lat = req.body.latitude != null ? parseFloat(req.body.latitude) : null;
+    let lng = req.body.longitude != null ? parseFloat(req.body.longitude) : null;
+
+    if ((lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) && req.body.address) {
+      const geo = await geocodeAddress(req.body.address);
+      if (geo) {
+        lat = geo.lat;
+        lng = geo.lng;
+      }
+    }
+
+    if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) {
+      return res.status(400).json({
+        success: false,
+        message: "Could not resolve coordinates. Use address autocomplete or a valid address.",
+      });
+    }
+
+    const zone = await zoneController.findZoneByPoint(lat, lng);
+    res.json({
+      success: true,
+      data: {
+        latitude: lat,
+        longitude: lng,
+        zone: zone
+          ? {
+              zone_id: zone.id,
+              zone_name: zone.name,
+              driver_id: zone.driver_id,
+              driver_username: zone.driver?.username ?? null,
+            }
+          : null,
+      },
+    });
+  } catch (err) {
+    console.error("geocodeForZone:", err);
+    res.status(500).json({ success: false, message: err.message || "Server error" });
+  }
+};
 
 exports.getItemsByDeliveryId = async (req, res) => {
   const deliveryId = req.params.deliveryId;

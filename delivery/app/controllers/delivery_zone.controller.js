@@ -39,6 +39,7 @@ function pointInPolygon(lat, lng, polygon) {
 exports.findZoneByPoint = async (lat, lng) => {
   const zones = await DeliveryZone.findAll({
     attributes: ["id", "name", "driver_id", "coordinates"],
+    include: [{ model: User, as: "driver", attributes: ["id", "username"] }],
     order: [["id", "ASC"]],
   });
   for (const zone of zones) {
@@ -48,6 +49,33 @@ exports.findZoneByPoint = async (lat, lng) => {
     }
   }
   return null;
+};
+
+/** GET /api/delivery-zone/lookup?lat=&lng= — preview driver for a point */
+exports.lookupByPoint = async (req, res) => {
+  const lat = parseFloat(req.query.lat, 10);
+  const lng = parseFloat(req.query.lng, 10);
+  if (Number.isNaN(lat) || Number.isNaN(lng)) {
+    return res.status(400).json({ success: false, message: "lat and lng are required" });
+  }
+  try {
+    const zone = await exports.findZoneByPoint(lat, lng);
+    if (!zone) {
+      return res.json({ success: true, data: null, message: "No zone contains this point" });
+    }
+    res.json({
+      success: true,
+      data: {
+        zone_id: zone.id,
+        zone_name: zone.name,
+        driver_id: zone.driver_id,
+        driver_username: zone.driver?.username ?? null,
+      },
+    });
+  } catch (err) {
+    console.error("delivery_zone lookupByPoint:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
 };
 
 exports.findAll = async (req, res) => {

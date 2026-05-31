@@ -8,6 +8,8 @@ module.exports = app => {
     router.post("/allocate", delivery.allocateDeliveries);
     router.get("/findAllWithDate", delivery.findAllWithDate);
 
+    router.post("/geocode", delivery.geocodeForZone);
+
     // Create a new Tutorial
     router.post("/", delivery.create);
   

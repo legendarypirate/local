@@ -30,6 +30,8 @@ interface GoogleAddressAutocompleteProps {
     district?: string;
     khoroo?: string;
     address?: string;
+    latitude?: number;
+    longitude?: number;
   }) => void; // Custom onChange with components
   placeholder?: string;
   className?: string;
@@ -50,6 +52,8 @@ const GoogleAddressAutocomplete = ({
     district?: string;
     khoroo?: string;
     address?: string;
+    latitude?: number;
+    longitude?: number;
   }) => {
     // Call standard onChange (for Ant Design) with just the address
     if (onChange) {
@@ -347,12 +351,18 @@ const GoogleAddressAutocomplete = ({
       fullAddress = place.displayName?.text || place.formattedAddress || '';
     }
 
-    // Call handleChange with full address and parsed components
+    const latitude =
+      place.location?.latitude != null ? Number(place.location.latitude) : undefined;
+    const longitude =
+      place.location?.longitude != null ? Number(place.location.longitude) : undefined;
+
     handleChange(fullAddress, {
       city: city || undefined,
       district: district || undefined,
       khoroo: khoroo || undefined,
       address: fullAddress,
+      latitude,
+      longitude,
     });
 
     setIsLoading(false);

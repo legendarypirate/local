@@ -2,7 +2,7 @@
 
 import './delivery-admin.css';
 import React, { useState, useMemo, useRef, useEffect, Suspense } from 'react';
-import { Table, Button, Space, Input, DatePicker, Drawer, Form, Select, Tag, Modal, App, Checkbox, message, InputNumber, List, Row, Col, Tooltip, Image } from 'antd';
+import { Table, Button, Space, Input, DatePicker, Drawer, Form, Select, Tag, Modal, App, Checkbox, message, InputNumber, List, Row, Col, Tooltip, Image, Alert } from 'antd';
 import type { CheckboxProps } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, HistoryOutlined, PictureOutlined } from '@ant-design/icons';
@@ -227,6 +227,10 @@ export default function DeliveryPage() {
   const [deliveryImageModalOpen, setDeliveryImageModalOpen] = useState(false);
   const [deliveryImageUrl, setDeliveryImageUrl] = useState<string | null>(null);
   const [returnPrintLoading, setReturnPrintLoading] = useState(false);
+  const [zonePreview, setZonePreview] = useState<{
+    zone_name: string;
+    driver_username: string | null;
+  } | null>(null);
   const { modal, message: msg } = App.useApp();
 
   const handleEditClick = async (record: Delivery) => {
@@ -1073,7 +1077,31 @@ export default function DeliveryPage() {
     },
   };
 
+  const previewZoneForCoords = async (lat?: number, lng?: number) => {
+    if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) {
+      setZonePreview(null);
+      return;
+    }
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/delivery-zone/lookup?lat=${lat}&lng=${lng}`
+      );
+      const json = await res.json();
+      if (json.success && json.data) {
+        setZonePreview({
+          zone_name: json.data.zone_name,
+          driver_username: json.data.driver_username,
+        });
+      } else {
+        setZonePreview(null);
+      }
+    } catch {
+      setZonePreview(null);
+    }
+  };
+
   const handleDeliveryButton = () => {
+    setZonePreview(null);
     setIsDrawerVisible(true);
   };
 
@@ -1249,12 +1277,14 @@ export default function DeliveryPage() {
         phone: normalizeDeliveryPhone(values.phone),
         address: values.address,
         status: 1,
-        dist_id: values.dist_id, // Add district ID
-        khoroo_id: values.khoroo_id || null, // Add khoroo ID (optional)
+        dist_id: values.dist_id,
+        khoroo_id: values.khoroo_id || null,
         is_paid: isPaid,
         is_rural: isRural,
         price: Number(values.price),
         comment: values.comment,
+        latitude: values.latitude ?? null,
+        longitude: values.longitude ?? null,
         items: productList.map(item => ({
           good_id: item.productId,
           quantity: item.quantity,
@@ -1272,9 +1302,17 @@ export default function DeliveryPage() {
       const result = await response.json();
 
       if (result.success) {
-        msg.success('Амжилттай бүртгэгдлээ');
+        const za = result.zone_assignment;
+        if (za?.driver_username) {
+          msg.success(
+            `Амжилттай. Бүс "${za.zone_name}" — жолооч: ${za.driver_username} автоматаар оноогдлоо.`
+          );
+        } else {
+          msg.success('Амжилттай бүртгэгдлээ');
+        }
         setRefreshKey(prev => prev + 1);
         form.resetFields();
+        setZonePreview(null);
         setProductList([]);
         setSelectedProduct(null);
         setQuantity(1);
@@ -2182,10 +2220,45 @@ export default function DeliveryPage() {
                     availableDistricts: districts.map(d => d.name)
                   });
                 }
+
+                if (
+                  components?.latitude != null &&
+                  components?.longitude != null &&
+                  !Number.isNaN(components.latitude) &&
+                  !Number.isNaN(components.longitude)
+                ) {
+                  form.setFieldsValue({
+                    latitude: components.latitude,
+                    longitude: components.longitude,
+                  });
+                  await previewZoneForCoords(components.latitude, components.longitude);
+                } else {
+                  form.setFieldsValue({ latitude: undefined, longitude: undefined });
+                  setZonePreview(null);
+                }
               }}
               placeholder="Хаяг оруулж захиалга эхлүүлэх. Жич: Та сайтар шалгаж зөв хаяг оруулна уу"
             />
           </Form.Item>
+          <Form.Item name="latitude" hidden>
+            <Input />
+          </Form.Item>
+          <Form.Item name="longitude" hidden>
+            <Input />
+          </Form.Item>
+          {zonePreview && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message={`Бүс: ${zonePreview.zone_name}`}
+              description={
+                zonePreview.driver_username
+                  ? `Энэ хаяг бүсэд орно — хадгалахад жолооч «${zonePreview.driver_username}» автоматаар оноогдоно.`
+                  : 'Энэ хаяг бүсэд орно.'
+              }
+            />
+          )}
 
           <Form.Item
             label="Дүүрэг"

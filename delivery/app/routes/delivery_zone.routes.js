@@ -3,6 +3,7 @@ module.exports = (app) => {
   const router = require("express").Router();
 
   router.get("/", controller.findAll);
+  router.get("/lookup", controller.lookupByPoint);
   router.get("/:id", controller.findOne);
   router.post("/", controller.create);
   router.put("/:id", controller.update);
