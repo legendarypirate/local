@@ -369,6 +369,24 @@ db.users.hasMany(db.delivery_zones, { foreignKey: 'driver_id', as: 'delivery_zon
 
 db.service_regions.belongsTo(db.users, { foreignKey: 'driver_id', as: 'driver' });
 db.users.hasMany(db.service_regions, { foreignKey: 'driver_id', as: 'service_regions' });
+
+db.service_region_khoroos.belongsTo(db.service_regions, {
+  foreignKey: 'service_region_id',
+  as: 'service_region',
+});
+db.service_regions.hasMany(db.service_region_khoroos, {
+  foreignKey: 'service_region_id',
+  as: 'khoroo_links',
+});
+db.service_region_khoroos.belongsTo(db.khoroos, {
+  foreignKey: 'khoroo_id',
+  as: 'khoroo',
+});
+db.khoroos.hasMany(db.service_region_khoroos, {
+  foreignKey: 'khoroo_id',
+  as: 'region_links',
+});
+
 db.service_regions.belongsToMany(db.khoroos, {
   through: db.service_region_khoroos,
   foreignKey: 'service_region_id',
