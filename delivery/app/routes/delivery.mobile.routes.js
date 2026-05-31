@@ -12,6 +12,10 @@ module.exports = app => {
     router.get("/reportdata", delivery.getDeliveryStatusSummary);
 
     router.get("/report", delivery.report);
+    const settlement = require("../controllers/driver_daily_settlement.controller.js");
+    router.get("/daily-settlements", settlement.list);
+    router.post("/daily-settlement/payment", settlement.recordPayment);
+    router.post("/daily-settlements/sync", settlement.syncFromReport);
     router.get("/merchant", delivery.findMerchantDelivery);
     router.get("/driver/:id/status-3", delivery.findDeliveryDone);
 

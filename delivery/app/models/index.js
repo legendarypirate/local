@@ -50,8 +50,27 @@ db.delivery_zones = require("./delivery_zone.model.js")(sequelize, Sequelize);
 db.delivery_address_requests = require("./delivery_address_request.model.js")(sequelize, Sequelize);
 db.delivery_not_picked_requests = require("./delivery_not_picked_request.model.js")(sequelize, Sequelize);
 db.delivery_price_settings = require("./delivery_price_setting.model.js")(sequelize, Sequelize);
+db.driver_daily_settlements = require("./driver_daily_settlement.model.js")(sequelize, Sequelize);
+db.driver_settlement_payments = require("./driver_settlement_payment.model.js")(sequelize, Sequelize);
 
 db.role_permissions = require("./role_permission.model.js")(sequelize, Sequelize);
+
+db.driver_daily_settlements.belongsTo(db.users, {
+  foreignKey: 'driver_id',
+  as: 'driver',
+});
+db.users.hasMany(db.driver_daily_settlements, {
+  foreignKey: 'driver_id',
+  as: 'daily_settlements',
+});
+db.driver_daily_settlements.hasMany(db.driver_settlement_payments, {
+  foreignKey: 'settlement_id',
+  as: 'payments',
+});
+db.driver_settlement_payments.belongsTo(db.driver_daily_settlements, {
+  foreignKey: 'settlement_id',
+  as: 'settlement',
+});
 
 db.deliveries.belongsTo(db.delivery_price_settings, {
   foreignKey: 'price_setting_id',
