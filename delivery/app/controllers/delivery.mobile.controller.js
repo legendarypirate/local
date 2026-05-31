@@ -314,12 +314,6 @@ exports.report = async (req, res) => {
   }
 };
 
-function statusRequiresProofImage(statusNum, delivery) {
-  if (statusNum === 7) return true;
-  if (statusNum === 3 && delivery.is_rural) return true;
-  return false;
-}
-
 exports.completeDelivery = async (req, res) => {
   const id = req.params.id;
   const { status, driver_comment, delivery_image: deliveryImageBody } = req.body;
@@ -355,7 +349,6 @@ exports.completeDelivery = async (req, res) => {
       });
     }
 
-    const needsImage = statusRequiresProofImage(statusNum, delivery);
     let deliveryImageUrl =
       typeof deliveryImageBody === "string" && deliveryImageBody.trim()
         ? deliveryImageBody.trim()
@@ -363,17 +356,6 @@ exports.completeDelivery = async (req, res) => {
 
     if (req.file) {
       deliveryImageUrl = await uploadDeliveryImage(req.file);
-    }
-
-    if (needsImage && !deliveryImageUrl) {
-      await t.rollback();
-      return res.status(400).send({
-        success: false,
-        message:
-          statusNum === 7
-            ? "Хаягаар очсон төлөвт зураг заавал оруулна."
-            : "Орон нутгийн хүргэлтэд хүргэсэн төлөвт зураг заавал оруулна.",
-      });
     }
 
     // 🔹 Prepare update fields
