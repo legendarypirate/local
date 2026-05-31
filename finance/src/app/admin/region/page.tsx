@@ -144,6 +144,8 @@ export default function ServiceRegionsAdminPage() {
     }
   };
 
+  const khorooKey = (id: number | string) => String(id);
+
   const openKhorooAssign = async (region: ServiceRegion) => {
     if (region.is_rural) {
       msg.info('Орон нутаг бүсэд хороо хуваарилах шаардлагагүй');
@@ -154,24 +156,41 @@ export default function ServiceRegionsAdminPage() {
     const json = await res.json();
     if (json.success) {
       setGroupedKhoroos(json.data);
-      const assigned: React.Key[] = [];
+      const assigned = new Set<string>();
+      // From list API (already linked to this region)
+      region.khoroos?.forEach((k) => assigned.add(khorooKey(k.id)));
+      // From grouped API (assignment map)
       json.data.forEach((d: GroupedKhoroo) => {
         d.khoroos.forEach((k) => {
-          if (k.assigned_service_region_id === region.id) assigned.push(k.id);
+          if (Number(k.assigned_service_region_id) === Number(region.id)) {
+            assigned.add(khorooKey(k.id));
+          }
         });
       });
-      setTargetKeys(assigned);
+      setTargetKeys([...assigned]);
       setKhorooModalOpen(true);
     }
   };
 
-  const transferDataSource = groupedKhoroos.flatMap((d) =>
-    d.khoroos.map((k) => ({
-      key: String(k.id),
-      title: `${d.district_name} — ${k.name}`,
-      disabled: k.assigned_service_region_id != null && k.assigned_service_region_id !== activeRegion?.id,
-    }))
-  );
+  const transferDataSource = (() => {
+    const seen = new Set<string>();
+    const items: { key: string; title: string; disabled: boolean }[] = [];
+    groupedKhoroos.forEach((d) => {
+      d.khoroos.forEach((k) => {
+        const key = khorooKey(k.id);
+        if (seen.has(key)) return;
+        seen.add(key);
+        items.push({
+          key,
+          title: `${d.district_name} — ${k.name}`,
+          disabled:
+            k.assigned_service_region_id != null &&
+            Number(k.assigned_service_region_id) !== Number(activeRegion?.id),
+        });
+      });
+    });
+    return items;
+  })();
 
   const handleSaveKhoroos: TransferProps['onChange'] = async (nextKeys) => {
     setTargetKeys(nextKeys);
