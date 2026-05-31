@@ -86,6 +86,11 @@ module.exports = (sequelize, Sequelize) => {
         allowNull: false,
         defaultValue: 6000,
       },
+      price_setting_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        defaultValue: null,
+      },
       delivery_image: {
         type: Sequelize.STRING(512),
         allowNull: true,

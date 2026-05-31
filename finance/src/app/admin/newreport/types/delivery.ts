@@ -4,6 +4,14 @@ export interface User {
   phone?: string;
 }
 
+export interface PriceSetting {
+  id: number;
+  label?: string | null;
+  merchant_price: number;
+  driver_price: number;
+  is_default?: boolean;
+}
+
 export interface Delivery {
   id: number;
   phone: string;
@@ -11,6 +19,10 @@ export interface Delivery {
   status: number | string;
   price: number;
   delivery_price?: number;
+  price_setting_id?: number | null;
+  price_setting?: PriceSetting | null;
+  merchant_report_price?: number;
+  driver_report_price?: number;
   comment?: string;
   driver: { username: string } | null;
   createdAt?: string;

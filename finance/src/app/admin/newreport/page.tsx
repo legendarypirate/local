@@ -19,8 +19,19 @@ import { fetchReportDeliveries, fetchReportOrders, type Order } from './services
 import { fetchDrivers, fetchMerchants } from './services/delivery-users.service';
 import type { Delivery } from './types/delivery';
 import type { ReportRow, ReportType } from './types/report';
+import {
+  FALLBACK_DRIVER_UNIT,
+  FALLBACK_MERCHANT_UNIT,
+  driverUnit,
+  merchantUnit,
+  salaryForDeliveries,
+  sumDriverUnits,
+  sumMerchantUnits,
+  unitForOrderType,
+} from './utils/reportPrice';
 
 const { Title } = Typography;
+const api = process.env.NEXT_PUBLIC_API_URL || '';
 
 function dedupeDeliveriesById(list: Delivery[]): Delivery[] {
   const m = new Map<number, Delivery>();
@@ -28,14 +39,6 @@ function dedupeDeliveriesById(list: Delivery[]): Delivery[] {
   return Array.from(m.values());
 }
 const { RangePicker } = DatePicker;
-
-const DRIVER_UNIT = 4000;
-const MERCHANT_UNIT = 6000;
-
-function unitForType(type: ReportType | 'now', isCustomer: boolean): number {
-  const t = isCustomer ? 'now' : type;
-  return t === 'driver' ? DRIVER_UNIT : MERCHANT_UNIT;
-}
 
 function isStatus3(d: Delivery): boolean {
   return d.status === 3 || d.status === '3';
@@ -70,10 +73,21 @@ const drawerDeliveryColumns: TableColumnsType<Delivery> = [
     render: (v: number) => `${Number(v ?? 0).toLocaleString()} ₮`,
   },
   {
-    title: 'Хүргэлтийн үнэ',
-    dataIndex: 'delivery_price',
+    title: 'Дэлгүүр (тайлан)',
     width: 120,
-    render: (v: number | undefined) => `${Number(v ?? 6000).toLocaleString()} ₮`,
+    render: (_: unknown, r: Delivery) => `${merchantUnit(r).toLocaleString()} ₮`,
+  },
+  {
+    title: 'Жолооч (тайлан)',
+    width: 120,
+    render: (_: unknown, r: Delivery) => `${driverUnit(r).toLocaleString()} ₮`,
+  },
+  {
+    title: 'Тохиргоо',
+    width: 120,
+    ellipsis: true,
+    render: (_: unknown, r: Delivery) =>
+      r.price_setting?.label ?? (r.price_setting_id ? `#${r.price_setting_id}` : 'Стандарт'),
   },
   {
     title: 'Төлөв',
@@ -102,6 +116,10 @@ export default function NewReportPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerTitle, setDrawerTitle] = useState('');
   const [drawerDeliveries, setDrawerDeliveries] = useState<Delivery[]>([]);
+  const [defaultUnits, setDefaultUnits] = useState({
+    merchant: FALLBACK_MERCHANT_UNIT,
+    driver: FALLBACK_DRIVER_UNIT,
+  });
 
   useEffect(() => {
     document.title = 'Тайлан (шинэ)';
@@ -109,6 +127,24 @@ export default function NewReportPage() {
 
   useEffect(() => {
     setUser(getStoredUser());
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${api}/api/delivery-price-settings`);
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          const d = json.data.find((s: { is_default?: boolean }) => s.is_default) ?? json.data[0];
+          setDefaultUnits({
+            merchant: Number(d.merchant_price ?? FALLBACK_MERCHANT_UNIT),
+            driver: Number(d.driver_price ?? FALLBACK_DRIVER_UNIT),
+          });
+        }
+      } catch {
+        /* keep fallbacks */
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -225,7 +261,7 @@ export default function NewReportPage() {
             (sum, d) => sum + parseFloat(String(d.price)),
             0
           );
-          const salary = merchantDeliveries.length * MERCHANT_UNIT;
+          const salary = sumMerchantUnits(merchantDeliveries);
           const difference = totalPrice - salary;
           if (
             (reportType === 'now' && difference >= 0) ||
@@ -242,7 +278,7 @@ export default function NewReportPage() {
               (sum, d) => sum + parseFloat(String(d.price)),
               0
             );
-            const salary = merchantDeliveries.length * MERCHANT_UNIT;
+            const salary = sumMerchantUnits(merchantDeliveries);
             const difference = totalPrice - salary;
             return (
               (reportType === 'now' && difference >= 0) ||
@@ -266,8 +302,7 @@ export default function NewReportPage() {
       );
       const groupedOrders = groupOrdersByType(orders, typeToUse, isCustomer);
 
-      const unitOrder = unitForType(typeToUse, isCustomer);
-      const pricePerDelivery = typeToUse === 'driver' ? DRIVER_UNIT : MERCHANT_UNIT;
+      const unitOrder = unitForOrderType(typeToUse, isCustomer, defaultUnits);
 
       let rowKeySeq = 0;
       const nextRowKey = () => `r-${rowKeySeq++}`;
@@ -278,11 +313,11 @@ export default function NewReportPage() {
         const status5GroupDeliveries = groupedStatus5Data[id] || [];
         const status5Count = status5GroupDeliveries.length;
 
-        let salary = deliveredCount * pricePerDelivery;
+        let salary = salaryForDeliveries(groupDeliveries, typeToUse, isCustomer);
         if (typeToUse === 'driver') {
-          salary += status5Count * DRIVER_UNIT;
+          salary += sumDriverUnits(status5GroupDeliveries);
         } else {
-          salary += status5Count * MERCHANT_UNIT;
+          salary += sumMerchantUnits(status5GroupDeliveries);
         }
 
         const groupOrders = groupedOrders[id] || [];
@@ -318,9 +353,9 @@ export default function NewReportPage() {
           const status5Count = status5GroupDeliveries.length;
           let salary = 0;
           if (typeToUse === 'driver') {
-            salary = status5Count * DRIVER_UNIT;
+            salary = sumDriverUnits(status5GroupDeliveries);
           } else {
-            salary = status5Count * MERCHANT_UNIT;
+            salary = sumMerchantUnits(status5GroupDeliveries);
           }
           const groupOrders = groupedOrders[id] || [];
           const orderCount = groupOrders.length;
@@ -518,7 +553,9 @@ export default function NewReportPage() {
       Тайлбар: d.comment ?? '',
       Утас: d.phone ?? '',
       'Барааны үнэ': Number(d.price ?? 0),
-      'Хүргэлтийн үнэ': Number(d.delivery_price ?? 6000),
+      'Дэлгүүр (тайлан)': merchantUnit(d),
+      'Жолооч (тайлан)': driverUnit(d),
+      Тохиргоо: d.price_setting?.label ?? '',
       Төлөв: d.status_name?.status ?? String(d.status),
       'Хүргэгдсэн огноо': d.delivered_at ? dayjs(d.delivered_at).format('YYYY-MM-DD HH:mm') : '',
     }));
@@ -597,7 +634,8 @@ export default function NewReportPage() {
   return (
     <div style={{ maxWidth: 1400 }}>
       <Title level={4} style={{ marginBottom: 16 }}>
-        Тайлан (шинэ) — жолооч {DRIVER_UNIT}₮, дэлгүүр {MERCHANT_UNIT}₮
+        Тайлан (шинэ) — default жолооч {defaultUnits.driver.toLocaleString()}₮, дэлгүүр{' '}
+        {defaultUnits.merchant.toLocaleString()}₮ (хүргэлт бүрт тохиргоогоор)
       </Title>
 
       <Space wrap style={{ marginBottom: 16 }} align="center">
@@ -744,7 +782,7 @@ export default function NewReportPage() {
           rowKey="id"
           pagination={false}
           dataSource={drawerDeliveries}
-          scroll={{ x: 1240, y: 'calc(70vh - 200px)' }}
+          scroll={{ x: 1480, y: 'calc(70vh - 200px)' }}
           columns={drawerDeliveryColumns}
         />
       </Drawer>

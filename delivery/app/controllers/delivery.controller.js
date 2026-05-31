@@ -6,7 +6,29 @@ const Status = db.statuses;
 const Order = db.orders;
 const Good = db.goods;
 const DeliveryItem = db.delivery_items;
+const DeliveryPriceSetting = db.delivery_price_settings;
+const priceSettingCtrl = require("./delivery_price_setting.controller.js");
 
+const priceSettingInclude = {
+  model: DeliveryPriceSetting,
+  as: "price_setting",
+  attributes: ["id", "label", "merchant_price", "driver_price", "is_default"],
+  required: false,
+};
+
+function formatDeliveryRow(delivery) {
+  const j = delivery.toJSON ? delivery.toJSON() : { ...delivery };
+  const ps = j.price_setting;
+  const merchant =
+    ps?.merchant_price != null
+      ? Number(ps.merchant_price)
+      : Number(j.delivery_price ?? 6000);
+  const driver = ps?.driver_price != null ? Number(ps.driver_price) : 4000;
+  j.delivery_price = merchant;
+  j.merchant_report_price = merchant;
+  j.driver_report_price = driver;
+  return j;
+}
 
 const generateDeliveryId = async () => {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -243,6 +265,7 @@ exports.create = async (req, res) => {
       if (zone) driverId = zone.driver_id;
     }
 
+    const defaultSetting = await priceSettingCtrl.getDefaultSetting();
     const newDel = {
       delivery_id,
       merchant_id: req.body.merchant_id,
@@ -258,6 +281,8 @@ exports.create = async (req, res) => {
       driver_id: driverId,
       latitude: lat,
       longitude: lng,
+      delivery_price: defaultSetting ? defaultSetting.merchant_price : 6000,
+      price_setting_id: defaultSetting ? defaultSetting.id : null,
     };
 
     const delivery = await Delivery.create(newDel, { transaction: t });
@@ -434,23 +459,17 @@ exports.importExcelDeliveries = async (req, res) => {
 };
 
 /**
- * Bulk update delivery_price for selected delivery IDs.
- * Body: { delivery_ids: number[], delivery_price: number } (delivery_price can be string from JSON)
+ * Bulk assign price setting to deliveries.
+ * Body: { delivery_ids: number[], price_setting_id: number }
+ * Legacy: { delivery_ids, delivery_price } (merchant price only, clears setting link)
  */
 exports.bulkUpdateDeliveryPrice = async (req, res) => {
-  const { delivery_ids, delivery_price } = req.body;
+  const { delivery_ids, price_setting_id, delivery_price } = req.body;
 
   if (!Array.isArray(delivery_ids) || delivery_ids.length === 0) {
     return res.status(400).json({
       success: false,
       message: "delivery_ids array is required.",
-    });
-  }
-  const priceNum = Number(delivery_price);
-  if (delivery_price == null || Number.isNaN(priceNum) || priceNum < 0) {
-    return res.status(400).json({
-      success: false,
-      message: "delivery_price must be a non-negative number.",
     });
   }
 
@@ -463,10 +482,34 @@ exports.bulkUpdateDeliveryPrice = async (req, res) => {
   }
 
   try {
-    const [num] = await Delivery.update(
-      { delivery_price: priceNum },
-      { where: { id: { [Op.in]: ids } } }
-    );
+    let updatePayload;
+    let setting = null;
+
+    if (price_setting_id != null && price_setting_id !== "") {
+      const settingId = parseInt(price_setting_id, 10);
+      if (Number.isNaN(settingId)) {
+        return res.status(400).json({ success: false, message: "Invalid price_setting_id." });
+      }
+      setting = await DeliveryPriceSetting.findByPk(settingId);
+      if (!setting) {
+        return res.status(404).json({ success: false, message: "Price setting not found." });
+      }
+      updatePayload = {
+        price_setting_id: settingId,
+        delivery_price: setting.merchant_price,
+      };
+    } else {
+      const priceNum = Number(delivery_price);
+      if (delivery_price == null || Number.isNaN(priceNum) || priceNum < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "price_setting_id or delivery_price is required.",
+        });
+      }
+      updatePayload = { delivery_price: priceNum, price_setting_id: null };
+    }
+
+    const [num] = await Delivery.update(updatePayload, { where: { id: { [Op.in]: ids } } });
     if (!num) {
       return res.status(404).json({
         success: false,
@@ -478,6 +521,7 @@ exports.bulkUpdateDeliveryPrice = async (req, res) => {
       success: true,
       message: `${num} delivery(ies) updated.`,
       updated: num,
+      price_setting: setting,
     });
   } catch (error) {
     console.error("Error bulk updating delivery_price:", error);
@@ -544,24 +588,12 @@ exports.findAll = async (req, res) => {
         { model: User, as: "merchant", attributes: ["username"] },
         { model: Status, as: "status_name", attributes: ["status", "color"] },
         { model: User, as: "driver", attributes: ["username"] },
+        priceSettingInclude,
       ],
       order: [["id", "DESC"]],
     });
 
-    // 🧾 Response
-    const formattedDeliveries = rows.map((delivery) => {
-      const j = delivery.toJSON();
-      const raw = delivery.dataValues || {};
-      const dp = delivery.get ? delivery.get("delivery_price") : raw.delivery_price;
-      const val =
-        dp !== undefined && dp !== null
-          ? Number(dp)
-          : raw.delivery_price != null
-            ? Number(raw.delivery_price)
-            : 6000;
-      j.delivery_price = val;
-      return j;
-    });
+    const formattedDeliveries = rows.map((delivery) => formatDeliveryRow(delivery));
 
     res.status(200).json({
       success: true,
@@ -638,18 +670,12 @@ where.status = {
           as: 'driver',
           attributes: ['username'],
         },
+        priceSettingInclude,
       ],
       order: [['id', 'DESC']],
     });
 
-    const formattedDeliveries = rows.map((delivery) => {
-      const j = delivery.toJSON();
-      const raw = delivery.dataValues || {};
-      const dp = delivery.get ? delivery.get('delivery_price') : raw.delivery_price;
-      const val = dp !== undefined && dp !== null ? Number(dp) : (raw.delivery_price != null ? Number(raw.delivery_price) : 6000);
-      j.delivery_price = val;
-      return j;
-    });
+    const formattedDeliveries = rows.map((delivery) => formatDeliveryRow(delivery));
 
     res.status(200).json({
       success: true,

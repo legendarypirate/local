@@ -77,6 +77,15 @@ interface Delivery {
   is_rural: boolean;
   delivery_price?: number;
   delivery_image?: string | null;
+  price_setting_id?: number | null;
+  price_setting?: {
+    id: number;
+    label?: string | null;
+    merchant_price: number;
+    driver_price: number;
+    is_default?: boolean;
+  } | null;
+  driver_report_price?: number;
 }
 
 const products = [
@@ -166,7 +175,10 @@ export default function DeliveryPage() {
   const [formKhoroosLoading, setFormKhoroosLoading] = useState(false);
   const [selectedKhorooId, setSelectedKhorooId] = useState<number | null>(null);
   const [isDeliveryPriceModal, setIsDeliveryPriceModal] = useState(false);
-  const [deliveryPriceInput, setDeliveryPriceInput] = useState<number | null>(6000);
+  const [priceSettings, setPriceSettings] = useState<
+    { id: number; label?: string | null; merchant_price: number; driver_price: number; is_default?: boolean }[]
+  >([]);
+  const [selectedPriceSettingId, setSelectedPriceSettingId] = useState<number | null>(null);
   const [deliveryPriceSubmitting, setDeliveryPriceSubmitting] = useState(false);
   const [deliveryImageModalOpen, setDeliveryImageModalOpen] = useState(false);
   const [deliveryImageUrl, setDeliveryImageUrl] = useState<string | null>(null);
@@ -315,11 +327,20 @@ export default function DeliveryPage() {
     },
     { title: 'Барааны үнэ', dataIndex: 'price', key: 'price' },
     {
-      title: 'Хүргэлтийн үнэ',
-      dataIndex: 'delivery_price',
-      key: 'delivery_price',
-      width: 120,
-      render: (v: number | undefined) => `${Number(v ?? 6000).toLocaleString()} ₮`,
+      title: 'Үнийн тохиргоо',
+      key: 'price_setting',
+      width: 160,
+      ellipsis: true,
+      render: (_: unknown, record: Delivery) => {
+        const ps = record.price_setting;
+        if (ps?.label) {
+          return `${ps.label} (${Number(ps.merchant_price).toLocaleString()} / ${Number(ps.driver_price).toLocaleString()})`;
+        }
+        if (ps) {
+          return `${Number(ps.merchant_price).toLocaleString()} / ${Number(ps.driver_price).toLocaleString()} ₮`;
+        }
+        return `${Number(record.delivery_price ?? 6000).toLocaleString()} / 4,000 ₮`;
+      },
     },
     { title: 'Тайлбар', dataIndex: 'comment' },
     {
@@ -922,6 +943,14 @@ export default function DeliveryPage() {
           if (statusResult.success) setStatusList(statusResult.data);
         }
 
+        if (priceSettings.length === 0) {
+          const psRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/delivery-price-settings`);
+          const psResult = await psRes.json();
+          if (psResult.success && Array.isArray(psResult.data)) {
+            setPriceSettings(psResult.data);
+          }
+        }
+
         // Fetch districts (regions) only once
         if (districts.length === 0) {
           await fetchDistricts();
@@ -990,23 +1019,19 @@ export default function DeliveryPage() {
   };
 
   const openDeliveryPriceModal = () => {
+    if (priceSettings.length === 0) {
+      msg.warning('Үнийн тохиргоо байхгүй. Эхлээд Үнийн тохиргоо цэсээр нэмнэ үү.');
+      return;
+    }
     const selectedRows = deliveryData.filter((d) => selectedRowKeys.includes(d.id));
     const first = selectedRows[0];
-    const current =
-      first?.delivery_price != null && !Number.isNaN(Number(first.delivery_price))
-        ? Number(first.delivery_price)
-        : 6000;
-    setDeliveryPriceInput(current);
+    setSelectedPriceSettingId(first?.price_setting_id ?? priceSettings.find((p) => p.is_default)?.id ?? priceSettings[0]?.id ?? null);
     setIsDeliveryPriceModal(true);
   };
 
   const handleBulkDeliveryPriceSave = async () => {
-    if (deliveryPriceInput == null) {
-      msg.warning('Үнэ оруулна уу');
-      return;
-    }
-    if (deliveryPriceInput < 0) {
-      msg.warning('Үнэ сөрөг байж болохгүй');
+    if (!selectedPriceSettingId) {
+      msg.warning('Үнийн тохиргоо сонгоно уу');
       return;
     }
     if (selectedRowKeys.length === 0) {
@@ -1014,7 +1039,7 @@ export default function DeliveryPage() {
       return;
     }
 
-    const newPrice = Number(deliveryPriceInput);
+    const setting = priceSettings.find((p) => p.id === selectedPriceSettingId);
     const ids = selectedRowKeys.map((k) => Number(k));
 
     setDeliveryPriceSubmitting(true);
@@ -1024,7 +1049,7 @@ export default function DeliveryPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           delivery_ids: ids,
-          delivery_price: newPrice,
+          price_setting_id: selectedPriceSettingId,
         }),
       });
       const result = await res.json();
@@ -1035,11 +1060,23 @@ export default function DeliveryPage() {
         return;
       }
 
-      msg.success(`${updated} хүргэлтийн үнэ шинэчлэгдлээ`);
+      msg.success(`${updated} хүргэлтэд тохиргоо оноогдлоо`);
       setIsDeliveryPriceModal(false);
-      setDeliveryData((prev) =>
-        prev.map((d) => (ids.includes(d.id) ? { ...d, delivery_price: newPrice } : d))
-      );
+      if (setting) {
+        setDeliveryData((prev) =>
+          prev.map((d) =>
+            ids.includes(d.id)
+              ? {
+                  ...d,
+                  price_setting_id: setting.id,
+                  delivery_price: setting.merchant_price,
+                  price_setting: setting,
+                  driver_report_price: setting.driver_price,
+                }
+              : d
+          )
+        );
+      }
       setRefreshKey((prev) => prev + 1);
     } catch {
       msg.error('Алдаа гарлаа');
@@ -2196,7 +2233,7 @@ export default function DeliveryPage() {
               onClick={openDeliveryPriceModal}
               disabled={selectedRowKeys.length === 0}
             >
-              Хүргэлтийн үнэ солих
+              Үнийн тохиргоо оноох
             </Button>
             <Button
               type="primary"
@@ -2466,7 +2503,7 @@ export default function DeliveryPage() {
       </Modal>
 
       <Modal
-        title="Хүргэлтийн үнэ солих"
+        title="Үнийн тохиргоо оноох"
         open={isDeliveryPriceModal}
         onCancel={() => setIsDeliveryPriceModal(false)}
         onOk={handleBulkDeliveryPriceSave}
@@ -2475,14 +2512,19 @@ export default function DeliveryPage() {
         confirmLoading={deliveryPriceSubmitting}
       >
         <div style={{ marginBottom: 8 }}>
-          Сонгосон {selectedRowKeys.length} хүргэлтэд хэрэглэх хүргэлтийн үнэ (₮). «Барааны үнэ» биш.
+          Сонгосон {selectedRowKeys.length} хүргэлтэд тайланд ашиглах үнийн тохиргоо (дэлгүүр / жолооч).
         </div>
-        <InputNumber
-          min={0}
-          value={deliveryPriceInput ?? undefined}
-          onChange={(v) => setDeliveryPriceInput(v ?? null)}
+        <Select
           style={{ width: '100%' }}
-          addonAfter="₮"
+          placeholder="Тохиргоо сонгох"
+          value={selectedPriceSettingId ?? undefined}
+          onChange={(v) => setSelectedPriceSettingId(v)}
+          options={priceSettings.map((p) => ({
+            value: p.id,
+            label: p.label
+              ? `${p.label} — дэлгүүр ${Number(p.merchant_price).toLocaleString()}₮, жолооч ${Number(p.driver_price).toLocaleString()}₮`
+              : `Дэлгүүр ${Number(p.merchant_price).toLocaleString()}₮ / Жолооч ${Number(p.driver_price).toLocaleString()}₮`,
+          }))}
         />
       </Modal>
 

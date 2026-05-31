@@ -49,8 +49,18 @@ db.driver_tootsoos = require("./driver_tootsoo.model.js")(sequelize, Sequelize);
 db.delivery_zones = require("./delivery_zone.model.js")(sequelize, Sequelize);
 db.delivery_address_requests = require("./delivery_address_request.model.js")(sequelize, Sequelize);
 db.delivery_not_picked_requests = require("./delivery_not_picked_request.model.js")(sequelize, Sequelize);
+db.delivery_price_settings = require("./delivery_price_setting.model.js")(sequelize, Sequelize);
 
 db.role_permissions = require("./role_permission.model.js")(sequelize, Sequelize);
+
+db.deliveries.belongsTo(db.delivery_price_settings, {
+  foreignKey: 'price_setting_id',
+  as: 'price_setting',
+});
+db.delivery_price_settings.hasMany(db.deliveries, {
+  foreignKey: 'price_setting_id',
+  as: 'deliveries',
+});
 
 db.histories.belongsTo(db.users, {
   foreignKey: 'driver_id',
