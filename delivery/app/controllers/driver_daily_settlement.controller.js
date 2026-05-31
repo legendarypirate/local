@@ -160,6 +160,7 @@ exports.syncFromReport = async (req, res) => {
       const total_amount = parseInt(d.total_amount, 10) || 0;
       const driver_salary = parseInt(d.driver_salary, 10) || 0;
       const difference = parseInt(d.difference, 10) || 0;
+      const delivery_count = parseInt(d.delivery_count, 10) || 0;
 
       const [row] = await DriverDailySettlement.findOrCreate({
         where: { driver_id, settlement_date: date },
@@ -169,12 +170,16 @@ exports.syncFromReport = async (req, res) => {
           total_amount,
           driver_salary,
           difference,
+          delivery_count,
           amount_paid: 0,
         },
         transaction: t,
       });
 
-      await row.update({ total_amount, driver_salary, difference }, { transaction: t });
+      await row.update(
+        { total_amount, driver_salary, difference, delivery_count },
+        { transaction: t }
+      );
     }
     await t.commit();
     res.json({ success: true, message: 'Synced' });

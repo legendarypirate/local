@@ -33,7 +33,7 @@ interface SettlementRow {
   settlement_date: string;
   total_amount: number;
   driver_salary: number;
-  difference: number;
+  delivery_count?: number;
   amount_paid: number;
   remaining: number;
   is_paid?: boolean;
@@ -43,6 +43,7 @@ interface SettlementRow {
 
 interface ReportDay {
   date: string;
+  total_deliveries?: string | number;
   delivered_total_price?: string | number;
   for_driver?: string | number;
   driver_margin?: string | number;
@@ -81,6 +82,7 @@ export default function DriverDailySettlementsPage() {
       total_amount: parseInt(String(item.delivered_total_price ?? 0), 10) || 0,
       driver_salary: parseInt(String(item.for_driver ?? 0), 10) || 0,
       difference: parseInt(String(item.driver_margin ?? 0), 10) || 0,
+      delivery_count: parseInt(String(item.total_deliveries ?? 0), 10) || 0,
     }));
     if (!days?.length) return;
     await fetch(`${api}/api/driver-daily-settlements/sync`, {
@@ -158,7 +160,6 @@ export default function DriverDailySettlementsPage() {
           note: values.note?.trim() || null,
           total_amount: payRow.total_amount,
           driver_salary: payRow.driver_salary,
-          difference: payRow.difference,
         }),
       });
       const json = await res.json();
@@ -193,6 +194,13 @@ export default function DriverDailySettlementsPage() {
       width: 120,
     },
     {
+      title: 'Хүргэлтийн тоо',
+      dataIndex: 'delivery_count',
+      width: 100,
+      align: 'center',
+      render: (v: number | undefined) => Number(v ?? 0).toLocaleString(),
+    },
+    {
       title: 'Дүн (төлөх)',
       dataIndex: 'total_amount',
       width: 110,
@@ -218,12 +226,6 @@ export default function DriverDailySettlementsPage() {
       title: 'Жолоочид олгох',
       dataIndex: 'driver_salary',
       width: 110,
-      render: (v: number) => `${Number(v).toLocaleString()} ₮`,
-    },
-    {
-      title: 'Зөрүү',
-      dataIndex: 'difference',
-      width: 100,
       render: (v: number) => `${Number(v).toLocaleString()} ₮`,
     },
     {

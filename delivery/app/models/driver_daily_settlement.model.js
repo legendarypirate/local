@@ -7,6 +7,7 @@ module.exports = (sequelize, Sequelize) => {
       total_amount: { type: Sequelize.INTEGER, allowNull: false, defaultValue: 0 },
       driver_salary: { type: Sequelize.INTEGER, allowNull: false, defaultValue: 0 },
       difference: { type: Sequelize.INTEGER, allowNull: false, defaultValue: 0 },
+      delivery_count: { type: Sequelize.INTEGER, allowNull: false, defaultValue: 0 },
       amount_paid: { type: Sequelize.INTEGER, allowNull: false, defaultValue: 0 },
     },
     { tableName: 'driver_daily_settlements', timestamps: true }
