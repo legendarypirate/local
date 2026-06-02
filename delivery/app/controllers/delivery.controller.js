@@ -16,9 +16,6 @@ const priceSettingInclude = {
   required: false,
 };
 
-/** Statuses where admin may assign/re-assign a driver (delivery already attempted). */
-const REALLOCATABLE_STATUSES = [5, 6, 7, 8, 9, 10];
-
 function formatDeliveryRow(delivery) {
   const j = delivery.toJSON ? delivery.toJSON() : { ...delivery };
   const ps = j.price_setting;
@@ -504,14 +501,7 @@ exports.importExcelDeliveries = async (req, res) => {
 
   try {
     const deliveries = await Delivery.findAll({
-      where: {
-        id: delivery_ids,
-        [Op.or]: [
-          { driver_id: null },
-          { driver_id: 0 },
-          { status: { [Op.in]: REALLOCATABLE_STATUSES } },
-        ],
-      },
+      where: { id: delivery_ids },
       attributes: ["id", "merchant_id"],
       transaction: t,
     });
@@ -520,7 +510,7 @@ exports.importExcelDeliveries = async (req, res) => {
       await t.rollback();
       return res.status(400).json({
         success: false,
-        message: "Сонгосон хүргэлтэд жолоочгүй мөр байхгүй байна.",
+        message: "Сонгосон хүргэлт олдсонгүй.",
       });
     }
 
