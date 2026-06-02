@@ -344,17 +344,17 @@ export default function DeliveryPage() {
     {
       title: 'Үүссэн огноо',
       dataIndex: 'createdAt',
-      width: 128,
+      width: 170,
       render: (text: string) => {
-        return dayjs(text).format('YYYY-MM-DD hh:mm A');
+        return dayjs(text).format('YYYY-MM-DD HH:mm');
       },
     },
     {
       title: 'Хүргэсэн огноо',
       dataIndex: 'delivered_at',
-      width: 128,
+      width: 170,
       render: (text: string) => {
-        return text ? dayjs(text).format('YYYY-MM-DD hh:mm A') : '-';
+        return text ? dayjs(text).format('YYYY-MM-DD HH:mm') : '-';
       },
     },
     {
@@ -445,7 +445,6 @@ export default function DeliveryPage() {
       title: 'Үйлдэл',
       key: 'actions',
       width: 130,
-      fixed: 'right',
       className: 'delivery-cell-actions',
       render: (_: any, record: Delivery) => {
         const statusValue = typeof record.status === 'number' ? record.status : parseInt(String(record.status), 10);
@@ -1668,7 +1667,7 @@ export default function DeliveryPage() {
   };
 
   return (
-    <div className="delivery-admin-page" style={{ paddingBottom: '100px' }}>
+    <div className="delivery-admin-page">
       <h1 style={{ marginBottom: 24 }}>Хүргэлт</h1>
 
       <div className="delivery-admin-filters">
@@ -1858,7 +1857,7 @@ export default function DeliveryPage() {
         columns={columns}
         dataSource={deliveryData}
         rowKey="id"
-        scroll={{ x: 1180 }}
+        scroll={{ x: 1300 }}
         tableLayout="fixed"
         pagination={{
           current: pagination.current,

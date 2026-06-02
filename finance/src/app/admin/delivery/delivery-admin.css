@@ -59,16 +59,13 @@
 }
 
 .delivery-admin-actions {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  position: static;
   width: 100%;
   background: #fff;
+  margin-top: 12px;
   padding: 12px 16px;
-  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  padding-bottom: 12px;
   border-top: 1px solid #ddd;
-  z-index: 999;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -86,10 +83,6 @@
 }
 
 @media (max-width: 992px) {
-  .delivery-admin-page {
-    padding-bottom: 200px !important;
-  }
-
   .delivery-admin-filters .delivery-filter-add-btn {
     margin-left: 0;
     width: 100%;
