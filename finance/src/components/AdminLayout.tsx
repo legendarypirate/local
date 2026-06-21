@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useState, useTransition, useEffect } from 'react';
-import { Layout, Menu, App, Spin, Modal, Dropdown, Avatar, MenuProps } from 'antd';
+import { Layout, Menu, App, Spin, Dropdown, Avatar, MenuProps, Drawer, Button, Grid } from 'antd';
 import {
   DashboardOutlined, UserOutlined, SettingOutlined, TruckOutlined, ShoppingCartOutlined,
   AppstoreAddOutlined, BellOutlined, HomeOutlined, FileTextOutlined, KeyOutlined,
-  LogoutOutlined, BarChartOutlined, ShoppingOutlined, SwapOutlined, InboxOutlined,
+  LogoutOutlined, ShoppingOutlined, SwapOutlined, InboxOutlined,
+  MenuFoldOutlined, MenuUnfoldOutlined,
 } from '@ant-design/icons';
 import { usePathname, useRouter } from 'next/navigation';
+import './admin-layout.css';
 
 const { Header, Sider, Content } = Layout;
 
@@ -99,6 +101,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [userName, setUserName] = useState<string>('Хэрэглэгч');
   const [userRole, setUserRole] = useState<number | null>(null);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const screens = Grid.useBreakpoint();
+  const isMobile = screens.lg === false;
   const { modal, message: msg } = App.useApp();
 
   useEffect(() => {
@@ -279,37 +285,71 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   );
 
   const handleMenuClick: MenuProps['onClick'] = (e) => {
+    if (!String(e.key).startsWith('/')) return;
     setLoading(true);
+    setMobileMenuOpen(false);
     router.push(e.key);
     setTimeout(() => setLoading(false), 500);
   };
 
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
+
+  const adminMenu = (
+    <Menu
+      theme="dark"
+      mode="inline"
+      selectedKeys={[pathname]}
+      onClick={handleMenuClick}
+      items={filteredMenuItems}
+      inlineCollapsed={!isMobile && collapsed}
+    />
+  );
+
+  const sidebarLogo = (
+    <div className="admin-logo">
+      {!isMobile && collapsed ? 'LE' : 'Local Express'}
+    </div>
+  );
+
   /* ------------------------ RENDER ------------------------ */
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider breakpoint="lg" collapsedWidth="0">
-        <div className="logo" style={{ color: 'white', padding: '16px', textAlign: 'center' }}>
-          Local Express
-        </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          selectedKeys={[pathname]}
-          onClick={handleMenuClick}
-          items={filteredMenuItems}
-        />
-      </Sider>
-
-      <Layout>
-        <Header
-          style={{
-            background: '#fff',
-            padding: '0 24px',
-            display: 'flex',
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-          }}
+    <Layout style={{ minHeight: '100vh' }} className="admin-layout">
+      {!isMobile && (
+        <Sider
+          className="admin-sider"
+          collapsible
+          collapsed={collapsed}
+          onCollapse={setCollapsed}
+          trigger={null}
+          width={256}
+          collapsedWidth={80}
         >
+          {sidebarLogo}
+          {adminMenu}
+        </Sider>
+      )}
+
+      <Layout className="admin-main">
+        <Header className="admin-header">
+          <Button
+            type="text"
+            aria-label={isMobile ? 'Цэс нээх' : collapsed ? 'Цэс өргөжүүлэх' : 'Цэс хураах'}
+            icon={
+              isMobile || collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />
+            }
+            onClick={() => {
+              if (isMobile) {
+                setMobileMenuOpen(true);
+              } else {
+                setCollapsed(!collapsed);
+              }
+            }}
+            className="admin-menu-trigger"
+          />
+          {isMobile && <span className="admin-header-title">Local Express</span>}
+          <div className="admin-header-spacer" />
           <Dropdown
             open={userDropdownOpen}
             onOpenChange={setUserDropdownOpen}
@@ -320,24 +360,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             <Avatar
               size="large"
-              style={{ cursor: 'pointer', backgroundColor: '#1890ff' }}
+              style={{ cursor: 'pointer', backgroundColor: '#1890ff', flexShrink: 0 }}
               icon={<UserOutlined />}
             />
           </Dropdown>
         </Header>
 
-        <Content style={{ margin: '24px 16px 0', overflow: 'hidden', maxWidth: '100%' }}>
+        {isMobile && (
+          <Drawer
+            placement="left"
+            open={mobileMenuOpen}
+            onClose={() => setMobileMenuOpen(false)}
+            width={280}
+            className="admin-mobile-drawer"
+            styles={{ body: { padding: 0, background: '#001529' } }}
+          >
+            <div className="admin-logo">Local Express</div>
+            {adminMenu}
+          </Drawer>
+        )}
+
+        <Content className="admin-content">
           <Spin spinning={loading || isPending} tip="Ачааллаж байна..." size="large">
-            <div
-              style={{
-                padding: 24,
-                background: '#fff',
-                minHeight: 360,
-                maxWidth: '100%',
-                overflow: 'hidden',
-                boxSizing: 'border-box',
-              }}
-            >
+            <div className="admin-content-inner">
               {children}
             </div>
           </Spin>

@@ -2,7 +2,7 @@
 
 import './delivery-admin.css';
 import React, { useState, useMemo, useRef, useEffect, Suspense } from 'react';
-import { Table, Button, Space, Input, DatePicker, Drawer, Form, Select, Tag, Modal, App, Checkbox, message, InputNumber, List, Row, Col, Tooltip, Image, Alert, Typography } from 'antd';
+import { Table, Button, Space, Input, DatePicker, Drawer, Form, Select, Tag, Modal, App, Checkbox, message, InputNumber, List, Row, Col, Tooltip, Image, Alert, Typography, Grid } from 'antd';
 import type { CheckboxProps } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, HistoryOutlined, PictureOutlined } from '@ant-design/icons';
@@ -161,6 +161,9 @@ interface ProductItem {
 
 
 export default function DeliveryPage() {
+  const screens = Grid.useBreakpoint();
+  const isMobile = screens.md === false;
+  const drawerWidth = isMobile ? '100%' : 800;
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -1917,8 +1920,8 @@ export default function DeliveryPage() {
         placement="right"
         open={isDrawerVisible}
         onClose={handleCloseDrawer}
-        width={800}  // wider drawer
-        styles={{ body: { padding: '20px' } }}
+        width={drawerWidth}
+        styles={{ body: { padding: isMobile ? '12px' : '20px' } }}
       >
         <Form form={form} initialValues={{ merchantId: selectedMerchantId }}
           layout="vertical">
@@ -2574,7 +2577,7 @@ export default function DeliveryPage() {
             Close
           </Button>,
         ]}
-        width={720}
+        width={isMobile ? '95vw' : 720}
         destroyOnClose
       >
         {deliveryImageUrl ? (
@@ -2598,7 +2601,7 @@ export default function DeliveryPage() {
             Close
           </Button>
         ]}
-        width={800}
+        width={isMobile ? '95vw' : 800}
       >
         {deliveryHistory.length === 0 ? (
           <p>No history found</p>
@@ -2645,7 +2648,7 @@ export default function DeliveryPage() {
         onCancel={handleEditModalCancel}
         okText="Save"
         cancelText="Cancel"
-        width={600}
+        width={isMobile ? '95vw' : 600}
       >
         <Form form={form} layout="vertical">
           <Form.Item
