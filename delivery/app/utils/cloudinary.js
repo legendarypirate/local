@@ -5,7 +5,7 @@ const cloudinary = require('../config/cloudinary');
  * @returns {Promise<string>} secure_url
  */
 function uploadDeliveryImage(file) {
-  return new Promise((resolve, reject) => {
+  const uploadPromise = new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       { resource_type: 'image' },
       (error, result) => {
@@ -16,6 +16,12 @@ function uploadDeliveryImage(file) {
     );
     stream.end(file.buffer);
   });
+
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Image upload timed out')), 45000);
+  });
+
+  return Promise.race([uploadPromise, timeoutPromise]);
 }
 
 module.exports = { uploadDeliveryImage };
