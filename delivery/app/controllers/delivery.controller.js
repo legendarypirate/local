@@ -675,12 +675,11 @@ exports.findAll = async (req, res) => {
 
     // 🗓️ Date filter by createdAt (default) or delivered_at — Ulaanbaatar calendar day
     if (start_date && end_date) {
-      const dateColumn = date_field === 'delivered_at' ? 'delivered_at' : 'createdAt';
-      where[Op.and] = [
-        literal(
-          `DATE("${dateColumn}" AT TIME ZONE 'Asia/Ulaanbaatar') BETWEEN '${start_date}' AND '${end_date}'`
-        ),
-      ];
+      const dateExpr =
+        date_field === 'delivered_at'
+          ? `DATE(deliveries.delivered_at AT TIME ZONE 'Asia/Ulaanbaatar')`
+          : `DATE(deliveries."createdAt" AT TIME ZONE 'Asia/Ulaanbaatar')`;
+      where[Op.and] = [literal(`${dateExpr} BETWEEN '${start_date}' AND '${end_date}'`)];
     }
 
     // 🔍 Query database
@@ -689,7 +688,7 @@ exports.findAll = async (req, res) => {
       limit,
       offset,
       distinct: true,
-      col: 'id',
+      col: 'deliveries.id',
       include: [
         { model: User, as: "merchant", attributes: ["username"] },
         { model: Status, as: "status_name", attributes: ["status", "color"] },
