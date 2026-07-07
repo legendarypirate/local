@@ -1,15 +1,14 @@
-module.exports = app => {
-    const good = require("../controllers/good.mobile.controller.js");
-    var router = require("express").Router();
-    router.get("/merchant", good.findMerchantGood);
+module.exports = (app) => {
+  const good = require("../controllers/good.mobile.controller.js");
+  const multer = require("multer");
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+  });
+  const router = require("express").Router();
 
-    router.post("/complete/:id", good.completeDelivery);
+  router.get("/merchant", good.findMerchantGood);
+  router.put("/:id/image", upload.single("image"), good.uploadGoodImage);
 
-    // Get deliveries for a driver (mobile)
-    router.get("/my", good.findUserDeliveries);
-
-    // Mark order as complete
-    router.get("/driver/:id/status-2", good.findDriverDeliveriesWithStatus);
-
-    app.use('/api/mobile/good', router);
+  app.use("/api/mobile/good", router);
 };

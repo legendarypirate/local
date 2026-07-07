@@ -14,6 +14,10 @@ module.exports = (sequelize, Sequelize) => {
       name: {
         type: Sequelize.STRING
       },
+      image_url: {
+        type: Sequelize.TEXT,
+        allowNull: true,
+      },
      
     });
   

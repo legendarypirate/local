@@ -4,10 +4,10 @@ const cloudinary = require('../config/cloudinary');
  * Upload a multer memory file buffer to Cloudinary.
  * @returns {Promise<string>} secure_url
  */
-function uploadDeliveryImage(file) {
+function uploadImage(file, folder = 'delivery') {
   const uploadPromise = new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { resource_type: 'image' },
+      { resource_type: 'image', folder },
       (error, result) => {
         if (error) return reject(error);
         if (!result?.secure_url) return reject(new Error('Cloudinary upload returned no URL'));
@@ -24,4 +24,12 @@ function uploadDeliveryImage(file) {
   return Promise.race([uploadPromise, timeoutPromise]);
 }
 
-module.exports = { uploadDeliveryImage };
+function uploadDeliveryImage(file) {
+  return uploadImage(file, 'delivery');
+}
+
+function uploadGoodImage(file) {
+  return uploadImage(file, 'goods');
+}
+
+module.exports = { uploadDeliveryImage, uploadGoodImage, uploadImage };

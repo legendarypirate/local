@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Space, Drawer, Form, Input, Select, Modal, notification, App } from 'antd';
+import { Table, Button, Space, Drawer, Form, Input, Select, Modal, notification, App, Image } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { EditOutlined, DeleteOutlined, CloseOutlined, ExclamationCircleFilled } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, CloseOutlined, ExclamationCircleFilled, EyeOutlined } from '@ant-design/icons';
 
 const { Option } = Select;
 
@@ -13,6 +13,7 @@ interface Good {
   name: string;
   merchant_id: number;
   ware_id: number;
+  image_url?: string | null;
   createdAt: string;
   updatedAt: string;
   merchant: {
@@ -35,6 +36,8 @@ export default function UsersPage() {
   const [selectedGood, setSelectedGood] = useState<Good | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [imagePreview, setImagePreview] = useState<{ name: string; url: string } | null>(null);
   const [editForm] = Form.useForm();
   const [user, setUser] = useState<any>(null);
   const [username, setUsername] = useState<string | null>(null);
@@ -214,6 +217,12 @@ export default function UsersPage() {
     }
   };
 
+  const openImageModal = (record: Good) => {
+    if (!record.image_url) return;
+    setImagePreview({ name: record.name, url: record.image_url });
+    setImageModalOpen(true);
+  };
+
   const handleEditGood = (record: Good) => {
     setSelectedGood(record);
     editForm.setFieldsValue({ name: record.name });
@@ -312,6 +321,22 @@ export default function UsersPage() {
     {
       title: 'Үлдэгдэл',
       dataIndex: 'stock',
+    },
+    {
+      title: 'Зураг',
+      key: 'image',
+      width: 100,
+      render: (_: unknown, record: Good) => (
+        <Button
+          type="link"
+          size="small"
+          icon={<EyeOutlined />}
+          disabled={!record.image_url}
+          onClick={() => openImageModal(record)}
+        >
+          Харах
+        </Button>
+      ),
     },
     ...(!isMerchant
       ? [
@@ -504,6 +529,29 @@ export default function UsersPage() {
             </Button>
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title={imagePreview ? `Зураг — ${imagePreview.name}` : 'Зураг'}
+        open={imageModalOpen}
+        onCancel={() => {
+          setImageModalOpen(false);
+          setImagePreview(null);
+        }}
+        footer={null}
+        centered
+        width={520}
+        destroyOnClose
+      >
+        {imagePreview?.url ? (
+          <Image
+            src={imagePreview.url}
+            alt={imagePreview.name}
+            style={{ width: '100%', maxHeight: '70vh', objectFit: 'contain' }}
+          />
+        ) : (
+          <p>Зураг байхгүй</p>
+        )}
       </Modal>
     </div>
   );

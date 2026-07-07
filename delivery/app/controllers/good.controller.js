@@ -19,7 +19,8 @@ exports.create = (req, res) => {
     name: req.body.name,
     ware_id:req.body.ware_id,
     merchant_id:req.body.merchant_id,
-    stock:req.body.stock
+    stock:req.body.stock,
+    image_url: req.body.image_url || null,
   };
 
   // Save Categories in the database
@@ -132,11 +133,10 @@ exports.findOne = (req, res) => {
 exports.update = async (req, res) => {
   const id = req.params.id;
 
-  // Validate request (ensure name is provided)
-  if (!req.body.name) {
+  if (!req.body.name && req.body.image_url === undefined) {
     return res.status(400).json({
       success: false,
-      message: "Good name is required.",
+      message: "At least one of name or image_url is required.",
     });
   }
 
@@ -149,8 +149,12 @@ exports.update = async (req, res) => {
       });
     }
 
-    // Update only the name
-    good.name = req.body.name;
+    if (req.body.name) {
+      good.name = req.body.name;
+    }
+    if (req.body.image_url !== undefined) {
+      good.image_url = req.body.image_url || null;
+    }
     await good.save();
 
     // Fetch the updated good with associations
