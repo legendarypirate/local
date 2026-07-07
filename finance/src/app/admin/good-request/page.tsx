@@ -353,7 +353,7 @@ export default function GoodRequestPage() {
   ];
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ width: '100%', maxWidth: '100%' }}>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
         <h1 style={{ margin: 0 }}>Барааны хүсэлт</h1>
         {isMerchant && (
@@ -400,14 +400,18 @@ export default function GoodRequestPage() {
         />
       </Space>
 
-      <Table
-        rowKey="id"
-        columns={columns}
-        dataSource={filteredRequests}
-        loading={loading}
-        pagination={{ pageSize: 20, showSizeChanger: true }}
-        locale={{ emptyText: 'Хүсэлт олдсонгүй' }}
-      />
+      <div className="admin-table-scroll-wrap">
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={filteredRequests}
+          loading={loading}
+          scroll={{ x: 'max-content' }}
+          tableLayout="fixed"
+          pagination={{ pageSize: 20, showSizeChanger: true }}
+          locale={{ emptyText: 'Хүсэлт олдсонгүй' }}
+        />
+      </div>
 
       <Drawer
         title="Барааны хүсэлт үүсгэх"

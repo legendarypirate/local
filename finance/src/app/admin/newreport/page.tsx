@@ -721,7 +721,7 @@ export default function NewReportPage() {
   ];
 
   return (
-    <div style={{ maxWidth: 1400 }}>
+    <div style={{ width: '100%', maxWidth: '100%' }}>
       <Title level={4} style={{ marginBottom: 16 }}>
         Тайлан (шинэ) — default жолооч {defaultUnits.driver.toLocaleString()}₮, дэлгүүр{' '}
         {defaultUnits.merchant.toLocaleString()}₮ (хүргэлт бүрт тохиргоогоор).
@@ -780,13 +780,16 @@ export default function NewReportPage() {
         </Button>
       </Space>
 
-      <Table<ReportRow>
-        rowKey={(r) => r.rowKeyId}
-        loading={loading}
-        columns={columns}
-        dataSource={reportData}
-        pagination={false}
-        summary={() =>
+      <div className="admin-table-scroll-wrap">
+        <Table<ReportRow>
+          rowKey={(r) => r.rowKeyId}
+          loading={loading}
+          columns={columns}
+          dataSource={reportData}
+          pagination={false}
+          scroll={{ x: 'max-content' }}
+          tableLayout="fixed"
+          summary={() =>
           reportData.length > 0 ? (
             <Table.Summary.Row>
               <Table.Summary.Cell index={0} colSpan={1}>
@@ -850,8 +853,9 @@ export default function NewReportPage() {
               </Table.Summary.Cell>
             </Table.Summary.Row>
           ) : null
-        }
-      />
+          }
+        />
+      </div>
 
       <Drawer
         title={drawerTitle}
@@ -867,14 +871,17 @@ export default function NewReportPage() {
           </Button>
         }
       >
-        <Table<Delivery>
-          size="small"
-          rowKey="id"
-          pagination={false}
-          dataSource={drawerDeliveries}
-          scroll={{ x: 1480, y: 'calc(70vh - 200px)' }}
-          columns={drawerDeliveryColumns}
-        />
+        <div className="admin-table-scroll-wrap">
+          <Table<Delivery>
+            size="small"
+            rowKey="id"
+            pagination={false}
+            dataSource={drawerDeliveries}
+            scroll={{ x: 'max-content', y: 'calc(70vh - 200px)' }}
+            tableLayout="fixed"
+            columns={drawerDeliveryColumns}
+          />
+        </div>
       </Drawer>
     </div>
   );

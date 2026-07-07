@@ -35,12 +35,13 @@ export default function DeliveryNotPickedRequestsPage() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [activeRow, setActiveRow] = useState<NotPickedRow | null>(null);
   const [rejectNote, setRejectNote] = useState('');
-  const [actionLoading, setActionLoading] = useState(false);
+  const [actionRowId, setActionRowId] = useState<number | null>(null);
 
-  const fetchRequests = useCallback(async () => {
+  const fetchRequests = useCallback(async (overrideStatus?: string) => {
+    const statusToLoad = overrideStatus ?? statusFilter;
     setLoading(true);
     try {
-      const q = statusFilter === 'all' ? '' : `?status=${encodeURIComponent(statusFilter)}`;
+      const q = statusToLoad === 'all' ? '' : `?status=${encodeURIComponent(statusToLoad)}`;
       const res = await fetch(`${api}/api/delivery-not-picked-requests${q}`);
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
@@ -66,7 +67,7 @@ export default function DeliveryNotPickedRequestsPage() {
   }, [fetchRequests]);
 
   const submitApprove = async (row: NotPickedRow) => {
-    setActionLoading(true);
+    setActionRowId(row.id);
     try {
       const res = await fetch(`${api}/api/delivery-not-picked-requests/${row.id}/approve`, {
         method: 'PUT',
@@ -75,20 +76,24 @@ export default function DeliveryNotPickedRequestsPage() {
       const json = await res.json();
       if (json.success) {
         msg.success(json.message || 'Зөвшөөрөгдлөө');
-        fetchRequests();
+        await fetchRequests();
       } else {
         msg.error(json.message || 'Алдаа');
+        throw new Error(json.message || 'Алдаа');
       }
-    } catch {
-      msg.error('Сервертэй холбогдож чадсангүй');
+    } catch (e) {
+      if (e instanceof Error && e.message !== 'Алдаа') {
+        msg.error('Сервертэй холбогдож чадсангүй');
+      }
+      throw e;
     } finally {
-      setActionLoading(false);
+      setActionRowId(null);
     }
   };
 
   const submitReject = async () => {
     if (!activeRow) return;
-    setActionLoading(true);
+    setActionRowId(activeRow.id);
     try {
       const res = await fetch(`${api}/api/delivery-not-picked-requests/${activeRow.id}/reject`, {
         method: 'PUT',
@@ -101,14 +106,19 @@ export default function DeliveryNotPickedRequestsPage() {
         setRejectOpen(false);
         setRejectNote('');
         setActiveRow(null);
-        fetchRequests();
+        setStatusFilter('rejected');
+        await fetchRequests('rejected');
       } else {
         msg.error(json.message || 'Алдаа');
+        throw new Error(json.message || 'Алдаа');
       }
-    } catch {
-      msg.error('Сервертэй холбогдож чадсангүй');
+    } catch (e) {
+      if (e instanceof Error && e.message !== 'Алдаа') {
+        msg.error('Сервертэй холбогдож чадсангүй');
+      }
+      throw e;
     } finally {
-      setActionLoading(false);
+      setActionRowId(null);
     }
   };
 
@@ -181,6 +191,14 @@ export default function DeliveryNotPickedRequestsPage() {
       render: (t: string | null) => t || '—',
     },
     {
+      title: 'Админ тайлбар',
+      key: 'admin_note',
+      dataIndex: 'admin_note',
+      ellipsis: true,
+      width: 180,
+      render: (t: string | null) => t || '—',
+    },
+    {
       title: 'Хүсэлтийн төлөв',
       key: 'status',
       dataIndex: 'status',
@@ -198,7 +216,7 @@ export default function DeliveryNotPickedRequestsPage() {
             <Button
               type="primary"
               size="small"
-              loading={actionLoading}
+              loading={actionRowId === r.id}
               onClick={() => {
                 modal.confirm({
                   title: 'Зөвшөөрөх үү?',
@@ -214,6 +232,7 @@ export default function DeliveryNotPickedRequestsPage() {
             <Button
               danger
               size="small"
+              disabled={actionRowId === r.id}
               onClick={() => {
                 setActiveRow(r);
                 setRejectNote('');
@@ -261,10 +280,10 @@ export default function DeliveryNotPickedRequestsPage() {
       <Modal
         title="Татгалзах"
         open={rejectOpen}
-        onCancel={() => !actionLoading && setRejectOpen(false)}
+        onCancel={() => !actionRowId && setRejectOpen(false)}
         okText="Илгээх"
         cancelText="Болих"
-        confirmLoading={actionLoading}
+        confirmLoading={actionRowId === activeRow?.id}
         onOk={submitReject}
       >
         <Input.TextArea

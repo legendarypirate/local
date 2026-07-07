@@ -814,14 +814,22 @@ exports.findOne = async (req, res) => {
       include: [
         {
           model: User,
-          as: 'merchant',     // alias in model associations
-          attributes: ['id', 'username','phone', 'shop_phone'] // select only what you need
+          as: 'merchant',
+          attributes: ['id', 'username','phone', 'shop_phone']
         },
         {
           model: Status,
-          as: 'status_name',   // alias for status table
+          as: 'status_name',
           attributes: ['id', 'status']
-        }
+        },
+        {
+          model: db.delivery_not_picked_requests,
+          as: 'not_picked_requests',
+          required: false,
+          separate: true,
+          order: [['createdAt', 'DESC']],
+          limit: 1,
+        },
       ]
     });
 

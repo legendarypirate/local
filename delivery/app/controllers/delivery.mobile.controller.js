@@ -11,26 +11,44 @@ const DeliveryNotPickedRequest = db.delivery_not_picked_requests;
 const moment = require("moment-timezone"); // <-- Add this line
 const { uploadDeliveryImage } = require("../utils/cloudinary");
 
-exports.findDriverDeliveriesWithStatus = (req, res) => {
+async function findPendingNotPickedRequest(deliveryId, transaction) {
+  return DeliveryNotPickedRequest.findOne({
+    where: { delivery_id: deliveryId, status: "pending" },
+    transaction,
+  });
+}
+
+exports.findDriverDeliveriesWithStatus = async (req, res) => {
   const driverId = req.params.id;
 
-  Delivery.findAll({
+  try {
+    const data = await Delivery.findAll({
       where: {
-          driver_id: driverId,
-          status: 2
-      }
-  })
-  .then(data => {
-      res.send({
-          success: true,
-          data: data
-      });
-  })
-  .catch(err => {
-      res.status(500).send({
-          message: err.message || "Some error occurred while retrieving deliveries."
-      });
-  });
+        driver_id: driverId,
+        status: 2,
+        [Op.or]: [{ is_deleted: false }, { is_deleted: null }],
+      },
+      include: [
+        {
+          model: DeliveryNotPickedRequest,
+          as: "not_picked_requests",
+          required: false,
+          separate: true,
+          order: [["createdAt", "DESC"]],
+          limit: 1,
+        },
+      ],
+      order: [["id", "DESC"]],
+    });
+    res.send({
+      success: true,
+      data,
+    });
+  } catch (err) {
+    res.status(500).send({
+      message: err.message || "Some error occurred while retrieving deliveries.",
+    });
+  }
 };
 
 exports.findWithStatus = async (req, res) => {
@@ -371,6 +389,16 @@ exports.completeDelivery = async (req, res) => {
       return res.status(404).send({
         success: false,
         message: "Delivery not found.",
+      });
+    }
+
+    const pendingNotPicked = await findPendingNotPickedRequest(id, t);
+    if (pendingNotPicked && statusNum !== 10) {
+      await t.rollback();
+      return res.status(400).send({
+        success: false,
+        message:
+          "'Авч гараагүй' хүсэлт админд хүлээгдэж байна. Админы хариу хүлээнэ үү.",
       });
     }
 

@@ -96,3 +96,18 @@
     padding: 8px;
   }
 }
+
+.admin-table-scroll-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-table-scroll-wrap .ant-table-wrapper {
+  min-width: 0;
+}
+
+.admin-table-scroll-wrap .ant-table-content table {
+  min-width: max-content;
+}
