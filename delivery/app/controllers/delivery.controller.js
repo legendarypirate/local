@@ -9,6 +9,10 @@ const Good = db.goods;
 const DeliveryItem = db.delivery_items;
 const DeliveryPriceSetting = db.delivery_price_settings;
 const priceSettingCtrl = require("./delivery_price_setting.controller.js");
+const {
+  isStockReturnedStatus,
+  applyStockForStatusChange,
+} = require("../utils/delivery_stock.js");
 
 const priceSettingInclude = {
   model: DeliveryPriceSetting,
@@ -55,24 +59,69 @@ exports.status = async (req, res) => {
     });
   }
 
+  const newStatus = parseInt(status_id, 10);
+  if (Number.isNaN(newStatus)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid status_id.",
+    });
+  }
+
+  const t = await db.sequelize.transaction();
+
   try {
-    // Bulk update the deliveries
-    await Delivery.update(
-      {
-        status: status_id,      // Set the status to 2 (or any value that represents the allocated state)
-      },
-      {
-        where: {
-          id: delivery_ids, // Filter by the selected delivery IDs
-        },
+    const deliveries = await Delivery.findAll({
+      where: { id: delivery_ids },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!deliveries.length) {
+      await t.rollback();
+      return res.status(404).json({
+        success: false,
+        message: "Deliveries not found.",
+      });
+    }
+
+    for (const delivery of deliveries) {
+      const oldStatus = Number(delivery.status);
+      if (oldStatus !== newStatus) {
+        await applyStockForStatusChange(oldStatus, newStatus, delivery.id, t);
       }
-    );
+    }
+
+    const updatePayload = { status: newStatus };
+    if (newStatus === 5 || newStatus === 7) {
+      updatePayload.delivered_at = new Date();
+    }
+
+    await Delivery.update(updatePayload, {
+      where: { id: deliveries.map((d) => d.id) },
+      transaction: t,
+    });
+
+    const historyRecords = deliveries
+      .filter((d) => Number(d.status) !== newStatus)
+      .map((d) => ({
+        merchant_id: d.merchant_id,
+        delivery_id: d.id,
+        driver_id: d.driver_id,
+        status: newStatus,
+      }));
+
+    if (historyRecords.length) {
+      await db.histories.bulkCreate(historyRecords, { transaction: t });
+    }
+
+    await t.commit();
 
     res.json({
       success: true,
       message: "Deliveries allocated and status updated successfully.",
     });
   } catch (error) {
+    await t.rollback();
     console.error("Error allocating deliveries:", error);
     res.status(500).json({
       success: false,
@@ -862,6 +911,17 @@ exports.update = async (req, res) => {
   const t = await db.sequelize.transaction();
 
   try {
+    const deliveryRow = await Delivery.findByPk(id, { transaction: t });
+    if (!deliveryRow) {
+      await t.rollback();
+      return res.status(404).json({
+        success: false,
+        message: "Delivery not found or no changes were made.",
+      });
+    }
+
+    const skipItemStockAdjust = isStockReturnedStatus(deliveryRow.status);
+
     // Prepare the data for updating
     const updateData = {};
     if (req.body.phone !== undefined) updateData.phone = req.body.phone;
@@ -870,17 +930,10 @@ exports.update = async (req, res) => {
     if (req.body.comment !== undefined) updateData.comment = req.body.comment;
     if (req.body.delivery_price !== undefined) updateData.delivery_price = req.body.delivery_price;
 
-    // Update the delivery entry in the database
-    const [num] = await Delivery.update(updateData, { 
-      where: { id: id },
-      transaction: t
-    });
-
-    if (num === 0) {
-      await t.rollback();
-      return res.status(404).json({
-        success: false,
-        message: "Delivery not found or no changes were made.",
+    if (Object.keys(updateData).length > 0) {
+      await Delivery.update(updateData, {
+        where: { id: id },
+        transaction: t,
       });
     }
 
@@ -903,8 +956,7 @@ exports.update = async (req, res) => {
       );
 
       for (const itemToDelete of itemsToDelete) {
-        // Restore stock for deleted items
-        if (itemToDelete.good_id) {
+        if (!skipItemStockAdjust && itemToDelete.good_id) {
           await Good.increment(
             { stock: itemToDelete.quantity },
             {
@@ -934,7 +986,7 @@ exports.update = async (req, res) => {
             );
 
             // Adjust stock if quantity changed
-            if (quantityDiff !== 0 && item.good_id) {
+            if (!skipItemStockAdjust && quantityDiff !== 0 && item.good_id) {
               await Good.increment(
                 { stock: -quantityDiff },
                 {
@@ -956,7 +1008,7 @@ exports.update = async (req, res) => {
           );
 
           // Reduce stock for new item
-          if (item.good_id) {
+          if (!skipItemStockAdjust && item.good_id) {
             await Good.increment(
               { stock: -(item.quantity || 1) },
               {
@@ -1055,63 +1107,86 @@ exports.delete = async (req, res) => {
   const t = await db.sequelize.transaction();
 
   try {
-    // Get all items for the delivery being deleted
-    const items = await DeliveryItem.findAll({
-      where: { delivery_id: id },
-      transaction: t,
-    });
-
-    // Restore stock for each item
-    for (const item of items) {
-      await Good.increment(
-        { stock: item.quantity },
-        { where: { id: item.good_id }, transaction: t }
-      );
+    const delivery = await Delivery.findByPk(id, { transaction: t });
+    if (!delivery) {
+      await t.rollback();
+      return res.status(404).json({
+        success: false,
+        message: `Cannot delete delivery with id=${id}. Maybe delivery was not found!`,
+      });
     }
 
-    // Delete the delivery
+    if (!isStockReturnedStatus(delivery.status)) {
+      const items = await DeliveryItem.findAll({
+        where: { delivery_id: id },
+        transaction: t,
+      });
+
+      for (const item of items) {
+        if (!item.good_id) continue;
+        await Good.increment(
+          { stock: item.quantity },
+          { where: { id: item.good_id }, transaction: t }
+        );
+      }
+    }
+
     const num = await Delivery.destroy({
       where: { id: id },
-      transaction: t
+      transaction: t,
     });
 
     await t.commit();
 
     if (num === 1) {
-      res.json({ success: true, message: "Category was deleted successfully!" });
+      res.json({ success: true, message: "Delivery was deleted successfully!" });
     } else {
       res.send({
-        message: `Cannot delete Categories with id=${id}. Maybe category was not found!`
+        message: `Cannot delete delivery with id=${id}. Maybe delivery was not found!`,
       });
     }
   } catch (err) {
     await t.rollback();
     res.status(500).send({
-      message: "Could not delete category with id=" + id
+      message: "Could not delete delivery with id=" + id,
     });
   }
 };
 
 exports.deleteMultiple = async (req, res) => {
   const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ success: false, message: "ids[] required" });
+  }
+
   const t = await db.sequelize.transaction();
-  
+
   try {
-    // Get all items for the deliveries being deleted
-    const items = await DeliveryItem.findAll({
-      where: { delivery_id: ids },
+    const deliveries = await Delivery.findAll({
+      where: { id: ids },
+      attributes: ["id", "status"],
       transaction: t,
     });
 
-    // Restore stock for each item
-    for (const item of items) {
-      await Good.increment(
-        { stock: item.quantity },
-        { where: { id: item.good_id }, transaction: t }
-      );
+    const restoreDeliveryIds = new Set(
+      deliveries.filter((d) => !isStockReturnedStatus(d.status)).map((d) => d.id)
+    );
+
+    if (restoreDeliveryIds.size > 0) {
+      const items = await DeliveryItem.findAll({
+        where: { delivery_id: [...restoreDeliveryIds] },
+        transaction: t,
+      });
+
+      for (const item of items) {
+        if (!item.good_id) continue;
+        await Good.increment(
+          { stock: item.quantity },
+          { where: { id: item.good_id }, transaction: t }
+        );
+      }
     }
 
-    // Mark deliveries as deleted
     await Delivery.update(
       { is_deleted: true },
       { where: { id: ids }, transaction: t }

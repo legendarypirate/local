@@ -533,7 +533,7 @@ export default function DeliveryPage() {
   };
 
   const columns: TableColumnsType<Delivery> = isMerchant
-    ? ([...baseColumns.filter(col => col.key !== 'merchant' && col.key !== 'driver' && col.key !== 'actions'), merchantActionsColumn] as TableColumnsType<Delivery>)
+    ? ([...baseColumns.filter(col => col.key !== 'merchant' && col.key !== 'driver' && col.key !== 'actions' && col.key !== 'service_region'), merchantActionsColumn] as TableColumnsType<Delivery>)
     : baseColumns;
 
   const merchantId = isMerchant ? user.id : null;

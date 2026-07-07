@@ -10,6 +10,7 @@ const DeliveryAddressRequest = db.delivery_address_requests;
 const DeliveryNotPickedRequest = db.delivery_not_picked_requests;
 const moment = require("moment-timezone"); // <-- Add this line
 const { uploadDeliveryImage } = require("../utils/cloudinary");
+const { applyStockForStatusChange } = require("../utils/delivery_stock.js");
 
 async function findPendingNotPickedRequest(deliveryId, transaction) {
   return DeliveryNotPickedRequest.findOne({
@@ -411,6 +412,8 @@ exports.completeDelivery = async (req, res) => {
       deliveryImageUrl = await uploadDeliveryImage(req.file);
     }
 
+    const oldStatus = Number(delivery.status);
+
     // 🔹 Prepare update fields
     const updateData = {
       status: statusNum,
@@ -429,20 +432,7 @@ exports.completeDelivery = async (req, res) => {
     // 🔹 Update delivery
     await delivery.update(updateData, { transaction: t });
 
-    // ✅ If declined (status 5) or status 7, restore stock
-    if (statusNum === 5 || statusNum === 7) {
-      const items = await DeliveryItem.findAll({
-        where: { delivery_id: id },
-        transaction: t,
-      });
-
-      for (const item of items) {
-        await Good.increment(
-          { stock: item.quantity },
-          { where: { id: item.good_id }, transaction: t }
-        );
-      }
-    }
+    await applyStockForStatusChange(oldStatus, statusNum, id, t);
 
     // 🔹 Insert into histories
     await db.histories.create(
