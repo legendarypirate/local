@@ -43,10 +43,18 @@ interface SettlementRow {
 
 interface ReportDay {
   date: string;
-  total_deliveries?: string | number;
+  delivered_count?: string | number;
+  address_visit_count?: string | number;
   delivered_total_price?: string | number;
   for_driver?: string | number;
   driver_margin?: string | number;
+}
+
+function settlementDeliveryCount(item: ReportDay): number {
+  return (
+    (parseInt(String(item.delivered_count ?? 0), 10) || 0) +
+    (parseInt(String(item.address_visit_count ?? 0), 10) || 0)
+  );
 }
 
 export default function DriverDailySettlementsPage() {
@@ -82,7 +90,7 @@ export default function DriverDailySettlementsPage() {
       total_amount: parseInt(String(item.delivered_total_price ?? 0), 10) || 0,
       driver_salary: parseInt(String(item.for_driver ?? 0), 10) || 0,
       difference: parseInt(String(item.driver_margin ?? 0), 10) || 0,
-      delivery_count: parseInt(String(item.total_deliveries ?? 0), 10) || 0,
+      delivery_count: settlementDeliveryCount(item),
     }));
     if (!days?.length) return;
     await fetch(`${api}/api/driver-daily-settlements/sync`, {
@@ -273,8 +281,7 @@ export default function DriverDailySettlementsPage() {
       </Typography.Title>
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
         Админ энд хэсэгчлэн эсвэл бүрэн төлбөр бүртгэнэ. Жолооч апп дээр зөвхөн үлдэгдлээ харна.
-        Хүргэлтийн тоо нь <strong>хүргэсэн огноо (delivered_at)</strong>-аар тоологдоно.
-        Admin/delivery дээр <strong>«Хүргэсэн огноо»</strong> сонговол ижил тоо харагдана.
+        Хүргэлтийн тоо = <strong>Хүргэсэн + Хаягаар очсон</strong> (төлөв 3 + 7), хүргэсэн огноогоор.
       </Typography.Paragraph>
       <Space wrap style={{ marginBottom: 16 }}>
         <Select

@@ -261,13 +261,17 @@ export default function NewReportPage() {
           driverIds.map(async (driverId, index) => {
             const days = await fetchMobileDriverReport(driverId, startDate, endDate);
             const totals = days.reduce(
-              (acc, day) => ({
-                totalDeliveries: acc.totalDeliveries + toInt(day.total_deliveries),
-                deliveredDeliveries: acc.deliveredDeliveries + toInt(day.delivered_count),
-                status5Deliveries: acc.status5Deliveries + toInt(day.address_visit_count),
-                totalPrice: acc.totalPrice + toFloat(day.delivered_total_price),
-                salary: acc.salary + toInt(day.for_driver),
-              }),
+              (acc, day) => {
+                const delivered = toInt(day.delivered_count);
+                const addressVisit = toInt(day.address_visit_count);
+                return {
+                  totalDeliveries: acc.totalDeliveries + delivered + addressVisit,
+                  deliveredDeliveries: acc.deliveredDeliveries + delivered,
+                  status5Deliveries: acc.status5Deliveries + addressVisit,
+                  totalPrice: acc.totalPrice + toFloat(day.delivered_total_price),
+                  salary: acc.salary + toInt(day.for_driver),
+                };
+              },
               {
                 totalDeliveries: 0,
                 deliveredDeliveries: 0,
