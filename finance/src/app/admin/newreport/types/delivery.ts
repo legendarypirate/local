@@ -24,6 +24,7 @@ export interface Delivery {
   merchant_report_price?: number;
   driver_report_price?: number;
   comment?: string;
+  driver_id?: number | null;
   driver: { username: string } | null;
   createdAt?: string;
   delivered_at?: string;

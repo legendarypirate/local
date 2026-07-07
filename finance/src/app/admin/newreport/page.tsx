@@ -15,7 +15,7 @@ import type { TableColumnsType } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
 import * as XLSX from 'xlsx';
 
-import { fetchReportDeliveries, fetchReportOrders, type Order } from './services/report.service';
+import { fetchReportDeliveries, fetchReportOrders, fetchMobileDriverReport, type Order } from './services/report.service';
 import { fetchDrivers, fetchMerchants } from './services/delivery-users.service';
 import type { Delivery } from './types/delivery';
 import type { ReportRow, ReportType } from './types/report';
@@ -101,6 +101,14 @@ const drawerDeliveryColumns: TableColumnsType<Delivery> = [
       r.delivered_at ? dayjs(r.delivered_at).format('YYYY-MM-DD HH:mm') : '-',
   },
 ];
+
+function toInt(v: string | number | undefined | null): number {
+  return parseInt(String(v ?? 0), 10) || 0;
+}
+
+function toFloat(v: string | number | undefined | null): number {
+  return parseFloat(String(v ?? 0)) || 0;
+}
 
 export default function NewReportPage() {
   const { message: msg } = App.useApp();
@@ -233,6 +241,84 @@ export default function NewReportPage() {
         ) {
           filters.merchantId = selectedId;
         }
+      }
+
+      const typeToUse: ReportType = isCustomer ? 'now' : reportType;
+
+      if (!isCustomer && typeToUse === 'driver') {
+        const driverIds = selectedId ? [selectedId] : drivers.map((d) => d.id);
+        const [deliveries, orders] = await Promise.all([
+          fetchReportDeliveries(filters),
+          fetchReportOrders(filters),
+        ]);
+
+        const status3Deliveries = deliveries.filter(isStatus3);
+        const addressVisitDeliveries = deliveries.filter(isStatus7AddressVisit);
+        const groupedOrders = groupOrdersByType(orders, typeToUse, isCustomer);
+        const unitOrder = unitForOrderType(typeToUse, isCustomer, defaultUnits);
+
+        const results = await Promise.all(
+          driverIds.map(async (driverId, index) => {
+            const days = await fetchMobileDriverReport(driverId, startDate, endDate);
+            const totals = days.reduce(
+              (acc, day) => ({
+                totalDeliveries: acc.totalDeliveries + toInt(day.total_deliveries),
+                deliveredDeliveries: acc.deliveredDeliveries + toInt(day.delivered_count),
+                status5Deliveries: acc.status5Deliveries + toInt(day.address_visit_count),
+                totalPrice: acc.totalPrice + toFloat(day.delivered_total_price),
+                salary: acc.salary + toInt(day.for_driver),
+              }),
+              {
+                totalDeliveries: 0,
+                deliveredDeliveries: 0,
+                status5Deliveries: 0,
+                totalPrice: 0,
+                salary: 0,
+              }
+            );
+
+            if (
+              totals.totalDeliveries === 0 &&
+              totals.deliveredDeliveries === 0 &&
+              totals.status5Deliveries === 0
+            ) {
+              return null;
+            }
+
+            const driverName =
+              drivers.find((d) => d.id === driverId)?.username ??
+              status3Deliveries.find((d) => d.driver_id === driverId)?.driver?.username ??
+              addressVisitDeliveries.find((d) => d.driver_id === driverId)?.driver?.username ??
+              `Жолооч #${driverId}`;
+
+            const driverStatus3 = status3Deliveries.filter((d) => d.driver_id === driverId);
+            const driverStatus7 = addressVisitDeliveries.filter((d) => d.driver_id === driverId);
+            const groupOrders = groupedOrders[driverName] || [];
+            const orderCount = groupOrders.length;
+            const salary = totals.salary + orderCount * unitOrder;
+
+            return {
+              rowKeyId: `r-${index}`,
+              dateRange: `${startDate} ~ ${endDate}`,
+              name: driverName,
+              deliveredDeliveries: totals.deliveredDeliveries,
+              totalDeliveries: totals.totalDeliveries,
+              totalPrice: totals.totalPrice,
+              salary,
+              status5Deliveries: totals.status5Deliveries,
+              status5MerchantAmount: 0,
+              status5DriverAmount: 0,
+              orderCount,
+              deliveredDetails: driverStatus3,
+              addressVisitDetails: driverStatus7,
+            } satisfies ReportRow;
+          })
+        );
+
+        const reportRows = results.filter((r): r is ReportRow => r !== null);
+        reportRows.sort((a, b) => a.name.localeCompare(b.name, 'mn'));
+        setReportData(reportRows);
+        return;
       }
 
       const [deliveries, orders] = await Promise.all([
@@ -635,7 +721,8 @@ export default function NewReportPage() {
     <div style={{ maxWidth: 1400 }}>
       <Title level={4} style={{ marginBottom: 16 }}>
         Тайлан (шинэ) — default жолооч {defaultUnits.driver.toLocaleString()}₮, дэлгүүр{' '}
-        {defaultUnits.merchant.toLocaleString()}₮ (хүргэлт бүрт тохиргоогоор)
+        {defaultUnits.merchant.toLocaleString()}₮ (хүргэлт бүрт тохиргоогоор).
+        Жолоочийн тайлан нь <strong>Өдрийн тооцоо</strong>-той ижил API ашиглана (хүргэсэн огноо).
       </Title>
 
       <Space wrap style={{ marginBottom: 16 }} align="center">
