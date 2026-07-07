@@ -379,7 +379,6 @@ export default function NewReportPage() {
         });
       }
 
-      const typeToUse: ReportType = isCustomer ? 'now' : reportType;
       const groupedData = groupDeliveriesByType(deliveriesToProcess, typeToUse, isCustomer);
       const groupedStatus5Data = groupDeliveriesByType(
         addressVisitDeliveriesToProcess,
