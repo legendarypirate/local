@@ -19,7 +19,7 @@ import {
   Typography,
 } from 'antd';
 import type { TableColumnsType, TransferProps } from 'antd';
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { ClusterOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 
 const api = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -61,12 +61,15 @@ export default function ServiceRegionsAdminPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingRegion, setEditingRegion] = useState<ServiceRegion | null>(null);
   const [khorooModalOpen, setKhorooModalOpen] = useState(false);
   const [activeRegion, setActiveRegion] = useState<ServiceRegion | null>(null);
   const [groupedKhoroos, setGroupedKhoroos] = useState<GroupedKhoroo[]>([]);
   const [targetKeys, setTargetKeys] = useState<React.Key[]>([]);
   const [savingKhoroos, setSavingKhoroos] = useState(false);
   const [createForm] = Form.useForm();
+  const [editForm] = Form.useForm();
 
   const [districts, setDistricts] = useState<District[]>([]);
   const [districtKhoroos, setDistrictKhoroos] = useState<KhorooRow[]>([]);
@@ -151,6 +154,32 @@ export default function ServiceRegionsAdminPage() {
       msg.success('Бүс үүслээ');
       setCreateOpen(false);
       createForm.resetFields();
+      fetchRegions();
+    } else {
+      msg.error(json.message || 'Алдаа');
+    }
+  };
+
+  const openEditRegion = (region: ServiceRegion) => {
+    setEditingRegion(region);
+    editForm.setFieldsValue({ name: region.name });
+    setEditOpen(true);
+  };
+
+  const handleEditRegion = async () => {
+    if (!editingRegion) return;
+    const values = await editForm.validateFields();
+    const res = await fetch(`${api}/api/service-region/${editingRegion.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: values.name.trim() }),
+    });
+    const json = await res.json();
+    if (json.success) {
+      msg.success('Бүсийн нэр шинэчлэгдлээ');
+      setEditOpen(false);
+      setEditingRegion(null);
+      editForm.resetFields();
       fetchRegions();
     } else {
       msg.error(json.message || 'Алдаа');
@@ -285,9 +314,14 @@ export default function ServiceRegionsAdminPage() {
       title: 'Үйлдэл',
       key: 'action',
       render: (_, r) => (
-        <Space>
+        <Space wrap>
           {!r.is_rural && (
-            <Button size="small" icon={<EditOutlined />} onClick={() => openKhorooAssign(r)}>
+            <Button size="small" icon={<EditOutlined />} onClick={() => openEditRegion(r)}>
+              Нэр засах
+            </Button>
+          )}
+          {!r.is_rural && (
+            <Button size="small" icon={<ClusterOutlined />} onClick={() => openKhorooAssign(r)}>
               Хороо хуваарилах
             </Button>
           )}
@@ -376,6 +410,29 @@ export default function ServiceRegionsAdminPage() {
       <Modal title="Шинэ бүс" open={createOpen} onOk={handleCreateRegion} onCancel={() => setCreateOpen(false)} okText="Үүсгэх">
         <Form form={createForm} layout="vertical">
           <Form.Item name="name" label="Бүсийн нэр" rules={[{ required: true }]} extra="Жишээ: 1-р бүс, 2-р бүс">
+            <Input placeholder="1-р бүс" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={editingRegion ? `Бүсийн нэр засах — ${editingRegion.name}` : 'Бүсийн нэр засах'}
+        open={editOpen}
+        onOk={handleEditRegion}
+        onCancel={() => {
+          setEditOpen(false);
+          setEditingRegion(null);
+          editForm.resetFields();
+        }}
+        okText="Хадгалах"
+        destroyOnClose
+      >
+        <Form form={editForm} layout="vertical">
+          <Form.Item
+            name="name"
+            label="Бүсийн нэр"
+            rules={[{ required: true, message: 'Бүсийн нэр оруулна уу' }]}
+          >
             <Input placeholder="1-р бүс" />
           </Form.Item>
         </Form>
