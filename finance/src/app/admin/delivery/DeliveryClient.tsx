@@ -166,6 +166,7 @@ export default function DeliveryPage() {
   const drawerWidth = isMobile ? '100%' : 800;
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
+  const [dateField, setDateField] = useState<'createdAt' | 'delivered_at'>('createdAt');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [form] = Form.useForm();
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
@@ -1067,6 +1068,7 @@ export default function DeliveryPage() {
         if (dateRange[0] && dateRange[1]) {
           url += `&start_date=${dateRange[0]?.format('YYYY-MM-DD')}`;
           url += `&end_date=${dateRange[1]?.format('YYYY-MM-DD')}`;
+          url += `&date_field=${dateField}`;
         }
 
         const deliveryRes = await fetch(url);
@@ -1082,7 +1084,7 @@ export default function DeliveryPage() {
     };
 
     fetchAllData();
-  }, [pagination.current, pagination.pageSize, merchantFilter, selectedStatuses, phoneFilter, dateRange, selectedMerchantId, driverFilter, districtFilter, khorooFilter, serviceRegionFilter, unassignedOnly, refreshKey, statusIdsParam]);
+  }, [pagination.current, pagination.pageSize, merchantFilter, selectedStatuses, phoneFilter, dateRange, dateField, selectedMerchantId, driverFilter, districtFilter, khorooFilter, serviceRegionFilter, unassignedOnly, refreshKey, statusIdsParam]);
 
 
   const rowSelection = {
@@ -1471,7 +1473,8 @@ export default function DeliveryPage() {
       const url =
         `${apiBase}/api/delivery?page=1&limit=10000` +
         `&status_ids=${statusIds.join(',')}` +
-        `&start_date=${yesterday}&end_date=${yesterday}`;
+        `&start_date=${yesterday}&end_date=${yesterday}` +
+        `&date_field=delivered_at`;
 
       const res = await fetch(url);
       const json = await res.json();
@@ -1702,10 +1705,24 @@ export default function DeliveryPage() {
             ))}
           </Select>
         )}
+        <Select
+          value={dateField}
+          onChange={(value: 'createdAt' | 'delivered_at') => {
+            setDateField(value);
+            setPagination((prev) => ({ ...prev, current: 1 }));
+          }}
+          className="delivery-filter-control"
+          style={{ minWidth: 170 }}
+          options={[
+            { value: 'createdAt', label: 'Үүсгэсэн огноо' },
+            { value: 'delivered_at', label: 'Хүргэсэн огноо' },
+          ]}
+        />
         <RangePicker
           value={dateRange}
           onChange={(range) => {
             setDateRange(range ?? [null, null]);
+            setPagination((prev) => ({ ...prev, current: 1 }));
           }}
         />
         {statusList.map((status) => (

@@ -223,26 +223,22 @@ exports.report = async (req, res) => {
     const notDeletedFilter = {
       [Op.or]: [{ is_deleted: false }, { is_deleted: null }],
     };
-    const deliveredAtRange = {
-      [Op.between]: [
-        new Date(`${start_date}T00:00:00+08:00`),
-        new Date(`${end_date}T23:59:59+08:00`),
-      ],
-    };
     const deliveredDateExpr = literal(`DATE("delivered_at" AT TIME ZONE 'Asia/Ulaanbaatar')`);
+    const deliveredDateFilter = literal(
+      `DATE("delivered_at" AT TIME ZONE 'Asia/Ulaanbaatar') BETWEEN '${start_date}' AND '${end_date}'`
+    );
 
-    // Total deliveries per local date — same basis as admin/delivery date filter (delivered_at)
+    // Total deliveries per local date — same basis as admin/delivery (delivered_at + UB calendar day)
     const totalDeliveries = await Delivery.findAll({
       where: {
         ...driverFilter,
         ...notDeletedFilter,
-        delivered_at: deliveredAtRange,
+        [Op.and]: [deliveredDateFilter],
       },
       attributes: [
         [deliveredDateExpr, 'date'],
         [fn('COUNT', col('id')), 'total_deliveries'],
       ],
-      having: literal(`DATE("delivered_at" AT TIME ZONE 'Asia/Ulaanbaatar') BETWEEN '${start_date}' AND '${end_date}'`),
       group: [deliveredDateExpr],
       raw: true,
     });
@@ -253,7 +249,7 @@ exports.report = async (req, res) => {
         ...driverFilter,
         ...notDeletedFilter,
         status: 3,
-        delivered_at: deliveredAtRange,
+        [Op.and]: [deliveredDateFilter],
       },
       attributes: [
         [deliveredDateExpr, 'date'],
@@ -270,7 +266,7 @@ exports.report = async (req, res) => {
         ...driverFilter,
         ...notDeletedFilter,
         status: 7,
-        delivered_at: deliveredAtRange,
+        [Op.and]: [deliveredDateFilter],
       },
       attributes: [
         [deliveredDateExpr, 'date'],

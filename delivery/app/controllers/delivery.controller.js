@@ -1,6 +1,7 @@
 const db = require("../models");
 const Delivery = db.deliveries;
 const Op = db.Sequelize.Op;
+const { literal } = db.Sequelize;
 const User = db.users;
 const Status = db.statuses;
 const Order = db.orders;
@@ -646,6 +647,7 @@ exports.findAll = async (req, res) => {
       unassigned,
       start_date,
       end_date,
+      date_field,
     } = req.query;
 
     // 🧩 Build WHERE clause
@@ -671,16 +673,14 @@ exports.findAll = async (req, res) => {
       if (statusArray.length > 0) where.status = { [Op.in]: statusArray };
     }
 
-    // 🗓️ Date Filter (Ulaanbaatar Time)
-    const tzOffsetMinutes = 8 * 60; // GMT+8
-    let filterStart, filterEnd;
-
+    // 🗓️ Date filter by createdAt (default) or delivered_at — Ulaanbaatar calendar day
     if (start_date && end_date) {
-      // Convert to Mongolia local time explicitly
-      filterStart = new Date(`${start_date}T00:00:00+08:00`);
-      filterEnd = new Date(`${end_date}T23:59:59+08:00`);
-
-      where.delivered_at = { [Op.between]: [filterStart, filterEnd] };
+      const dateColumn = date_field === 'delivered_at' ? 'delivered_at' : 'createdAt';
+      where[Op.and] = [
+        literal(
+          `DATE("${dateColumn}" AT TIME ZONE 'Asia/Ulaanbaatar') BETWEEN '${start_date}' AND '${end_date}'`
+        ),
+      ];
     }
 
     // 🔍 Query database
@@ -688,6 +688,8 @@ exports.findAll = async (req, res) => {
       where,
       limit,
       offset,
+      distinct: true,
+      col: 'id',
       include: [
         { model: User, as: "merchant", attributes: ["username"] },
         { model: Status, as: "status_name", attributes: ["status", "color"] },
