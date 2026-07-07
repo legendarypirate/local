@@ -281,7 +281,7 @@ export default function DriverDailySettlementsPage() {
       </Typography.Title>
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
         Админ энд хэсэгчлэн эсвэл бүрэн төлбөр бүртгэнэ. Жолооч апп дээр зөвхөн үлдэгдлээ харна.
-        Хүргэлтийн тоо = <strong>Хүргэсэн + Хаягаар очсон</strong> (төлөв 3 + 7), хүргэсэн огноогоор.
+        Хүргэлтийн тоо = <strong>Хүргэсэн + Хаягаар очсон</strong> (төлөв 3 + 7). Жолоочид олгох дүн нь хүргэлт бүрт оноосон <strong>Үнийн тохиргоо</strong>-оор тооцогдоно.
       </Typography.Paragraph>
       <Space wrap style={{ marginBottom: 16 }}>
         <Select

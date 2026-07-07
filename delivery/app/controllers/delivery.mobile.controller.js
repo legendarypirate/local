@@ -260,7 +260,7 @@ exports.report = async (req, res) => {
       raw: true,
     });
 
-    // Хаягаар очсон (status 7) — same +4000 ₮/ш toward for_driver as delivered
+    // Хаягаар очсон (status 7) — driver fee from price_setting per delivery
     const addressVisitStats = await Delivery.findAll({
       where: {
         ...driverFilter,
@@ -271,6 +271,23 @@ exports.report = async (req, res) => {
       attributes: [
         [deliveredDateExpr, 'date'],
         [fn('COUNT', col('id')), 'address_visit_count'],
+      ],
+      group: [deliveredDateExpr],
+      raw: true,
+    });
+
+    // Driver salary per day — sum price_setting.driver_price (fallback 4000) for status 3 & 7
+    const driverFeeSql = `COALESCE((SELECT ps.driver_price FROM delivery_price_settings ps WHERE ps.id = delivery.price_setting_id), 4000)`;
+    const driverSalaryStats = await Delivery.findAll({
+      where: {
+        ...driverFilter,
+        ...notDeletedFilter,
+        status: { [Op.in]: [3, 7] },
+        [Op.and]: [deliveredDateFilter],
+      },
+      attributes: [
+        [deliveredDateExpr, 'date'],
+        [fn('SUM', literal(driverFeeSql)), 'for_driver'],
       ],
       group: [deliveredDateExpr],
       raw: true,
@@ -289,8 +306,12 @@ exports.report = async (req, res) => {
       if (!resultMap[item.date]) resultMap[item.date] = {};
       resultMap[item.date].address_visit_count = parseInt(item.address_visit_count, 10) || 0;
     });
+    driverSalaryStats.forEach(item => {
+      if (!resultMap[item.date]) resultMap[item.date] = {};
+      resultMap[item.date].for_driver = parseFloat(item.for_driver ?? 0) || 0;
+    });
 
-    // 4️⃣ Convert to array, sort DESC — for_driver = 4000 * (хүргэгдсэн + хаягаар очсон)
+    // 4️⃣ Convert to array, sort DESC — for_driver from price settings per delivery
     const finalData = Object.keys(resultMap)
       .sort((a, b) => new Date(b) - new Date(a))
       .map(date => {
@@ -298,7 +319,7 @@ exports.report = async (req, res) => {
         const s3 = parseInt(row.delivered_count ?? 0, 10) || 0;
         const s7 = parseInt(row.address_visit_count ?? 0, 10) || 0;
         const sumPrice = parseFloat(row.delivered_total_price ?? 0) || 0;
-        const forDriver = s3 * 4000 + s7 * 4000;
+        const forDriver = parseFloat(row.for_driver ?? 0) || 0;
         const driverMargin = sumPrice - forDriver;
         return {
           date,
