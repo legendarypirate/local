@@ -677,8 +677,8 @@ exports.findAll = async (req, res) => {
     if (start_date && end_date) {
       const dateExpr =
         date_field === 'delivered_at'
-          ? `DATE(deliveries.delivered_at AT TIME ZONE 'Asia/Ulaanbaatar')`
-          : `DATE(deliveries."createdAt" AT TIME ZONE 'Asia/Ulaanbaatar')`;
+          ? `DATE(delivery.delivered_at AT TIME ZONE 'Asia/Ulaanbaatar')`
+          : `DATE(delivery."createdAt" AT TIME ZONE 'Asia/Ulaanbaatar')`;
       where[Op.and] = [literal(`${dateExpr} BETWEEN '${start_date}' AND '${end_date}'`)];
     }
 
@@ -688,7 +688,6 @@ exports.findAll = async (req, res) => {
       limit,
       offset,
       distinct: true,
-      col: 'deliveries.id',
       include: [
         { model: User, as: "merchant", attributes: ["username"] },
         { model: Status, as: "status_name", attributes: ["status", "color"] },
