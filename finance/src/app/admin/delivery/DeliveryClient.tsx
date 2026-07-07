@@ -17,6 +17,32 @@ const { RangePicker } = DatePicker;
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
 
+const MERCHANT_MAX_DATE_RANGE_DAYS = 60;
+
+function getMerchantDateBounds() {
+  return {
+    min: dayjs().subtract(MERCHANT_MAX_DATE_RANGE_DAYS, 'day').startOf('day'),
+    max: dayjs().endOf('day'),
+  };
+}
+
+function clampMerchantDateRange(range: [Dayjs | null, Dayjs | null]): [Dayjs | null, Dayjs | null] {
+  const [start, end] = range;
+  if (!start || !end) return range;
+  const { min, max } = getMerchantDateBounds();
+  let clampedStart = start.startOf('day');
+  let clampedEnd = end.endOf('day');
+  if (clampedStart.isBefore(min)) clampedStart = min;
+  if (clampedEnd.isAfter(max)) clampedEnd = max;
+  if (clampedEnd.isBefore(clampedStart)) clampedEnd = clampedStart.endOf('day');
+  return [clampedStart, clampedEnd];
+}
+
+function merchantDisabledDate(current: Dayjs) {
+  const { min, max } = getMerchantDateBounds();
+  return current.isBefore(min, 'day') || current.isAfter(max, 'day');
+}
+
 /** Remove spaces, dashes, parentheses, etc. — e.g. "9909 0099" → "99090099" */
 function normalizeDeliveryPhone(raw: unknown): string {
   if (raw == null) return '';
@@ -195,7 +221,7 @@ export default function DeliveryPage() {
 
   const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
   const user = userData ? JSON.parse(userData) : null;
-  const isMerchant = user?.role === 2;
+  const isMerchant = user?.role === 2 || user?.role_id === 2;
   const username = typeof window !== 'undefined' ? localStorage.getItem('username') : null;
 
   const [expandedRowKeys, setExpandedRowKeys] = React.useState<React.Key[]>([]);
@@ -1720,8 +1746,13 @@ export default function DeliveryPage() {
         />
         <RangePicker
           value={dateRange}
+          disabledDate={isMerchant ? merchantDisabledDate : undefined}
           onChange={(range) => {
-            setDateRange(range ?? [null, null]);
+            if (!range?.[0] || !range[1]) {
+              setDateRange(range ?? [null, null]);
+            } else {
+              setDateRange(isMerchant ? clampMerchantDateRange(range) : range);
+            }
             setPagination((prev) => ({ ...prev, current: 1 }));
           }}
         />
