@@ -273,6 +273,7 @@ export default function DriverDailySettlementsPage() {
       </Typography.Title>
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
         Админ энд хэсэгчлэн эсвэл бүрэн төлбөр бүртгэнэ. Жолооч апп дээр зөвхөн үлдэгдлээ харна.
+        Хүргэлтийн тоо нь <strong>хүргэсэн огноо (delivered_at)</strong>-аар тоологдоно — admin/delivery-ийн огнооны шүүлттэй ижил.
       </Typography.Paragraph>
       <Space wrap style={{ marginBottom: 16 }}>
         <Select

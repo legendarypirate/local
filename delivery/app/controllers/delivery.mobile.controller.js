@@ -219,56 +219,64 @@ exports.report = async (req, res) => {
   }
 
   try {
-    // Build where clauses
     const driverFilter = driver_id ? { driver_id } : {};
-
-    // 1️⃣ Total deliveries per local date based on createdAt
-    const totalDeliveries = await Delivery.findAll({
-      where: driverFilter,
-      attributes: [
-        [literal(`DATE("createdAt" AT TIME ZONE 'Asia/Ulaanbaatar')`), 'date'],
-        [fn('COUNT', col('id')), 'total_deliveries'],
-      ],
-      having: literal(`DATE("createdAt" AT TIME ZONE 'Asia/Ulaanbaatar') BETWEEN '${start_date}' AND '${end_date}'`),
-      group: [literal(`DATE("createdAt" AT TIME ZONE 'Asia/Ulaanbaatar')`)],
-      raw: true,
-    });
-
+    const notDeletedFilter = {
+      [Op.or]: [{ is_deleted: false }, { is_deleted: null }],
+    };
     const deliveredAtRange = {
       [Op.between]: [
         new Date(`${start_date}T00:00:00+08:00`),
         new Date(`${end_date}T23:59:59+08:00`),
       ],
     };
+    const deliveredDateExpr = literal(`DATE("delivered_at" AT TIME ZONE 'Asia/Ulaanbaatar')`);
 
-    // 2️⃣ Delivered (status 3) per local date based on delivered_at
+    // Total deliveries per local date — same basis as admin/delivery date filter (delivered_at)
+    const totalDeliveries = await Delivery.findAll({
+      where: {
+        ...driverFilter,
+        ...notDeletedFilter,
+        delivered_at: deliveredAtRange,
+      },
+      attributes: [
+        [deliveredDateExpr, 'date'],
+        [fn('COUNT', col('id')), 'total_deliveries'],
+      ],
+      having: literal(`DATE("delivered_at" AT TIME ZONE 'Asia/Ulaanbaatar') BETWEEN '${start_date}' AND '${end_date}'`),
+      group: [deliveredDateExpr],
+      raw: true,
+    });
+
+    // Delivered (status 3) per local date based on delivered_at
     const deliveredStats = await Delivery.findAll({
       where: {
         ...driverFilter,
+        ...notDeletedFilter,
         status: 3,
         delivered_at: deliveredAtRange,
       },
       attributes: [
-        [fn('DATE', col('delivered_at')), 'date'],
+        [deliveredDateExpr, 'date'],
         [fn('COUNT', col('id')), 'delivered_count'],
         [fn('SUM', col('price')), 'delivered_total_price'],
       ],
-      group: [fn('DATE', col('delivered_at'))],
+      group: [deliveredDateExpr],
       raw: true,
     });
 
-    // 2b️⃣ Хаягаар очсон (status 7) — same +4000 ₮/ш toward for_driver as delivered
+    // Хаягаар очсон (status 7) — same +4000 ₮/ш toward for_driver as delivered
     const addressVisitStats = await Delivery.findAll({
       where: {
         ...driverFilter,
+        ...notDeletedFilter,
         status: 7,
         delivered_at: deliveredAtRange,
       },
       attributes: [
-        [fn('DATE', col('delivered_at')), 'date'],
+        [deliveredDateExpr, 'date'],
         [fn('COUNT', col('id')), 'address_visit_count'],
       ],
-      group: [fn('DATE', col('delivered_at'))],
+      group: [deliveredDateExpr],
       raw: true,
     });
 
